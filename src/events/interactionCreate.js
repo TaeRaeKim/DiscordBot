@@ -29,7 +29,7 @@ module.exports = {
         // 해당 명령어의 핸들러 실행
         if (commandHandlers && commandHandlers[commandName]) {
             try {
-                await commandHandlers[commandName].execute(interaction);
+                await commandHandlers[commandName].execute(interaction, config);
             } catch (error) {
                 logger.error(`명령어 ${commandName} 실행 오류:`, error);
 

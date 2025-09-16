@@ -1,5 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
-const { loadPendingMembers } = require('../utils/dataManager');
+const { loadPendingMembers, savePendingMembers } = require('../utils/dataManager');
+const { hasAtSymbol } = require('../utils/memberUtils');
+const logger = require('../utils/logManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -10,12 +12,46 @@ module.exports = {
         // 먼저 defer로 응답 (3초 시간 초과 방지)
         await interaction.deferReply();
 
+        // 전체 멤버를 한번에 가져오기
+        await interaction.guild.members.fetch();
+
         const pendingMembers = loadPendingMembers();
         const guildPending = Object.values(pendingMembers).filter(data => data.guildId === interaction.guild.id);
 
+        // 닉네임 업데이트 처리
+        let updatedCount = 0;
+        const toRemove = [];
+
+        for (const data of guildPending) {
+            // 캐시에서 멤버 찾기 (API 호출 없음)
+            const member = interaction.guild.members.cache.get(data.memberId);
+            if (member && hasAtSymbol(member.displayName)) {
+                // @ 기호가 있으면 대기 목록에서 제거
+                const key = `${data.guildId}_${data.memberId}`;
+                toRemove.push(key);
+                updatedCount++;
+                logger.info(`✅ 대기 목록에서 제거: ${member.user.tag} (${member.displayName})`);
+            }
+        }
+
+        // 대기 목록 업데이트
+        if (toRemove.length > 0) {
+            const updatedPending = { ...pendingMembers };
+            toRemove.forEach(key => delete updatedPending[key]);
+            savePendingMembers(updatedPending);
+
+            // 업데이트된 목록으로 다시 필터링
+            const newPendingMembers = loadPendingMembers();
+            guildPending.length = 0;
+            guildPending.push(...Object.values(newPendingMembers).filter(data => data.guildId === interaction.guild.id));
+        }
+
         if (guildPending.length === 0) {
+            const message = updatedCount > 0
+                ? `✅ ${updatedCount}명의 닉네임이 규칙을 준수하여 대기 목록에서 제거되었습니다.\n현재 대기 중인 멤버가 없습니다.`
+                : '현재 대기 중인 멤버가 없습니다.';
             return interaction.editReply({
-                content: '현재 대기 중인 멤버가 없습니다.'
+                content: message
             });
         }
 
@@ -32,7 +68,7 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setColor('#ffff00')
                 .setTitle('📋 대기 중인 멤버 목록')
-                .setDescription(`총 **${guildPending.length}**명이 대기 중입니다.`)
+                .setDescription(`총 **${guildPending.length}**명이 대기 중입니다.${updatedCount > 0 ? `\n✅ ${updatedCount}명이 규칙 준수로 제거됨` : ''}`)
                 .setFooter({ text: `페이지 ${page}/${totalPages}` });
 
             // 현재 페이지 멤버들 처리

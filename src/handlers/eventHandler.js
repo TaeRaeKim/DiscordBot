@@ -15,15 +15,19 @@ function loadEvents(client, commands, commandHandlers, config) {
             client.on(event.name, (interaction) => {
                 event.execute(client, interaction, commands, commandHandlers, config);
             });
-        } else if (event.name === 'ready') {
-            // ready 이벤트는 한 번만 실행
+        } else if (event.name === 'clientReady') {
             client.once(event.name, () => {
-                event.execute(client, commands, commandHandlers, config);
+                event.execute(client, commands, config);
             });
         } else if (event.name === 'guildMemberAdd' || event.name === 'guildMemberRemove') {
             // 멤버 이벤트는 member를 첫 번째 인자로 전달
             client.on(event.name, (member) => {
                 event.execute(client, member, config);
+            });
+        } else if (event.name === 'threadCreate') {
+            // threadCreate 이벤트는 thread를 첫 번째 인자로 전달
+            client.on(event.name, (thread) => {
+                event.execute(thread);
             });
         } else {
             // 기타 이벤트
