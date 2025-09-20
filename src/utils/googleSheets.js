@@ -20,7 +20,7 @@ class GoogleSheetsManager {
 
             this.auth = new google.auth.GoogleAuth({
                 credentials,
-                scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly']
+                scopes: ['https://www.googleapis.com/auth/spreadsheets']
             });
 
             this.sheets = google.sheets({ version: 'v4', auth: this.auth });
@@ -80,10 +80,10 @@ class GoogleSheetsManager {
         }
     }
 
-    async getMemberNicknames(spreadsheetId, gid, nicknameColumn = 0, cellRange = 'A:A', startRow = 1) {
+    async getMemberNicknames(spreadsheetId, gid, column = 'A', startRow = 1) {
         try {
             const sheetName = await this.getSheetNameByGid(spreadsheetId, gid);
-            const range = `'${sheetName}'!${cellRange}`;
+            const range = `'${sheetName}'!${column}:${column}`;
 
             const data = await this.getSheetData(spreadsheetId, range);
 
@@ -93,12 +93,63 @@ class GoogleSheetsManager {
 
             const nicknames = data
                 .slice(startRow - 1)
-                .map(row => row[nicknameColumn])
+                .map(row => row[0])
                 .filter(nickname => nickname && nickname.trim() !== '');
 
             return nicknames;
         } catch (error) {
             console.error('[GoogleSheets] 멤버 닉네임 추출 실패:', error.message);
+            throw error;
+        }
+    }
+
+    async removeEmptyRows(spreadsheetId, gid, column = 'A', startRow = 1) {
+        try {
+            const sheetName = await this.getSheetNameByGid(spreadsheetId, gid);
+            const range = `'${sheetName}'!${column}:${column}`;
+
+            const data = await this.getSheetData(spreadsheetId, range);
+
+            if (data.length === 0) {
+                return { removed: 0, remaining: 0 };
+            }
+
+            const validData = [];
+            const headerData = data.slice(0, startRow - 1);
+            const contentData = data.slice(startRow - 1);
+
+            validData.push(...headerData);
+
+            const filteredContent = contentData.filter(row => row[0] && row[0].trim() !== '');
+            validData.push(...filteredContent);
+
+            const removedCount = data.length - validData.length;
+
+            const updateRange = `'${sheetName}'!${column}1:${column}${data.length}`;
+
+            const clearResponse = await this.sheets.spreadsheets.values.clear({
+                spreadsheetId,
+                range: updateRange
+            });
+
+            if (validData.length > 0) {
+                const updateResponse = await this.sheets.spreadsheets.values.update({
+                    spreadsheetId,
+                    range: `'${sheetName}'!${column}1`,
+                    valueInputOption: 'RAW',
+                    requestBody: {
+                        values: validData
+                    }
+                });
+            }
+
+            return {
+                removed: removedCount,
+                remaining: filteredContent.length,
+                totalRows: validData.length
+            };
+        } catch (error) {
+            console.error('[GoogleSheets] 빈 행 제거 실패:', error.message);
             throw error;
         }
     }

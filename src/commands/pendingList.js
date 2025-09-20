@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { loadPendingMembers, savePendingMembers } = require('../utils/dataManager');
 const { hasAtSymbol } = require('../utils/memberUtils');
 const logger = require('../utils/logManager');
@@ -6,7 +6,8 @@ const logger = require('../utils/logManager');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('대기목록')
-        .setDescription('현재 대기 중인 멤버 목록을 보여줍니다'),
+        .setDescription('현재 대기 중인 멤버 목록을 보여줍니다')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
     async execute(interaction) {
         // 먼저 defer로 응답 (3초 시간 초과 방지)

@@ -1,35 +1,33 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const config = require('../../config.json');
 const googleSheets = require('../utils/googleSheets');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('멤버표검사')
-        .setDescription('구글 시트에는 있지만 Discord 서버에는 없는 멤버를 검사합니다'),
+        .setDescription('구글 시트에는 있지만 Discord 서버에는 없는 멤버를 검사합니다')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
     async execute(interaction) {
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply();
 
         try {
             if (!config.googleSheetId || !config.googleSheetGid) {
                 return await interaction.editReply({
-                    content: '❌ 구글 시트 설정이 config.json에 없습니다.\n`googleSheetId`와 `googleSheetGid`를 설정해주세요.',
-                    ephemeral: true
+                    content: '❌ 구글 시트 설정이 config.json에 없습니다.\n`googleSheetId`와 `googleSheetGid`를 설정해주세요.'
                 });
             }
 
             const sheetNicknames = await googleSheets.getMemberNicknames(
                 config.googleSheetId,
                 config.googleSheetGid,
-                config.nicknameColumn || 0,
-                config.googleSheetCellRange || 'A:A',
+                config.nicknameColumn || 'A',
                 config.startRow || 1
             );
 
             if (sheetNicknames.length === 0) {
                 return await interaction.editReply({
-                    content: '⚠️ 구글 시트에서 닉네임을 찾을 수 없습니다.',
-                    ephemeral: true
+                    content: '⚠️ 구글 시트에서 닉네임을 찾을 수 없습니다.'
                 });
             }
 
@@ -43,12 +41,15 @@ module.exports = {
                 const displayName = member.displayName;
                 const username = member.user.username;
 
-                discordNicknames.add(displayName);
-                discordNicknames.add(username);
+                // @ 기준으로 닉네임 추출 (닉네임@서버명 형식)
+                if (displayName.includes('@')) {
+                    const baseNickname = displayName.split('@')[0].trim();
+                    discordNicknames.add(baseNickname);
+                }
 
-                const nicknameMatch = displayName.match(/(.+?)(?:\s*\[.+?\])?$/);
-                if (nicknameMatch && nicknameMatch[1]) {
-                    discordNicknames.add(nicknameMatch[1].trim());
+                if (username.includes('@')) {
+                    const baseUsername = username.split('@')[0].trim();
+                    discordNicknames.add(baseUsername);
                 }
             });
 
@@ -56,9 +57,7 @@ module.exports = {
                 const trimmedNickname = sheetNickname.trim();
 
                 const exists = Array.from(discordNicknames).some(discordNickname => {
-                    return discordNickname.toLowerCase() === trimmedNickname.toLowerCase() ||
-                           discordNickname.includes(trimmedNickname) ||
-                           trimmedNickname.includes(discordNickname);
+                    return discordNickname.toLowerCase() === trimmedNickname.toLowerCase();
                 });
 
                 return !exists;
@@ -73,7 +72,7 @@ module.exports = {
                 embed.setDescription('✅ 모든 구글 시트 멤버가 Discord 서버에 존재합니다.')
                     .addFields({
                         name: '📈 통계',
-                        value: `• 구글 시트 멤버: ${sheetNicknames.length}명\n• Discord 서버 멤버: ${discordMembers.size}명`,
+                        value: `• 구글 시트 멤버: ${sheetNicknames.length}명`,
                         inline: false
                     });
             } else {
@@ -81,7 +80,7 @@ module.exports = {
                     .addFields(
                         {
                             name: '📈 통계',
-                            value: `• 구글 시트 멤버: ${sheetNicknames.length}명\n• Discord 서버 멤버: ${discordMembers.size}명\n• 누락된 멤버: ${missingMembers.length}명`,
+                            value: `• 구글 시트 멤버: ${sheetNicknames.length}명\n• 누락된 멤버: ${missingMembers.length}명`,
                             inline: false
                         },
                         {
@@ -103,16 +102,14 @@ module.exports = {
                             attachment: buffer,
                             name: 'missing_members.txt',
                             description: '누락된 멤버 전체 목록'
-                        }],
-                        ephemeral: true
+                        }]
                     });
                     return;
                 }
             }
 
             await interaction.editReply({
-                embeds: [embed],
-                ephemeral: true
+                embeds: [embed]
             });
 
         } catch (error) {
@@ -129,8 +126,7 @@ module.exports = {
             }
 
             await interaction.editReply({
-                content: `${errorMessage}\n\`\`\`${error.message}\`\`\``,
-                ephemeral: true
+                content: `${errorMessage}\n\`\`\`${error.message}\`\`\``
             });
         }
     },

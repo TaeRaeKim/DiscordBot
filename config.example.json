@@ -5,7 +5,6 @@
     "targetChannelId": "디스코드 링크가 게시될 채널 ID",
     "googleSheetId": "구글 스프레드시트 ID",
     "googleSheetGid": "시트 GID (기본값: 0)",
-    "googleSheetCellRange": "닉네임 목록이 있는 셀 범위 (예: C:C)",
-    "startRow": 1,
-    "nicknameColumn": 0
+    "nicknameColumn": "닉네임이 있는 열 (예: A, B, C)",
+    "startRow": 1
 }

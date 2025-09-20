@@ -1,0 +1,98 @@
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const config = require('../../config.json');
+const googleSheets = require('../utils/googleSheets');
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('시트정리')
+        .setDescription('구글 시트의 빈 행을 제거합니다')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+
+    disabled: true,
+
+    async execute(interaction) {
+        await interaction.reply({
+            content: '❌ 이 명령어는 현재 비활성화되어 있습니다.',
+            ephemeral: true
+        });
+        return;
+        await interaction.deferReply({ ephemeral: true });
+
+        try {
+            if (!config.googleSheetId || !config.googleSheetGid) {
+                return await interaction.editReply({
+                    content: '❌ 구글 시트 설정이 config.json에 없습니다.\n`googleSheetId`와 `googleSheetGid`를 설정해주세요.',
+                    ephemeral: true
+                });
+            }
+
+            const beforeCount = await googleSheets.getMemberNicknames(
+                config.googleSheetId,
+                config.googleSheetGid,
+                config.nicknameColumn || 'A',
+                config.startRow || 1
+            );
+
+            const result = await googleSheets.removeEmptyRows(
+                config.googleSheetId,
+                config.googleSheetGid,
+                config.nicknameColumn || 'A',
+                config.startRow || 1
+            );
+
+            const embed = new EmbedBuilder()
+                .setTitle('🧹 구글 시트 정리 완료')
+                .setColor(result.removed > 0 ? 0x4ECDC4 : 0xFFA726)
+                .setTimestamp();
+
+            if (result.removed > 0) {
+                embed.setDescription(`✅ 빈 행 ${result.removed}개를 성공적으로 제거했습니다.`)
+                    .addFields(
+                        {
+                            name: '📊 정리 결과',
+                            value: `• 제거된 빈 행: ${result.removed}개\n• 남은 데이터: ${result.remaining}개\n• 전체 행 수: ${result.totalRows}개`,
+                            inline: false
+                        }
+                    );
+            } else {
+                embed.setDescription('ℹ️ 제거할 빈 행이 없습니다.')
+                    .addFields(
+                        {
+                            name: '📊 현재 상태',
+                            value: `• 데이터 행: ${result.remaining}개\n• 전체 행 수: ${result.totalRows}개`,
+                            inline: false
+                        }
+                    );
+            }
+
+            embed.addFields({
+                name: '⚙️ 설정 정보',
+                value: `• 대상 열: ${config.nicknameColumn || 'A'}열\n• 시작 행: ${config.startRow || 1}행`,
+                inline: false
+            });
+
+            await interaction.editReply({
+                embeds: [embed],
+                ephemeral: true
+            });
+
+        } catch (error) {
+            console.error('[시트정리] 오류:', error);
+
+            let errorMessage = '❌ 시트 정리 중 오류가 발생했습니다.';
+
+            if (error.message.includes('credentials.json')) {
+                errorMessage = '❌ Google 서비스 계정 인증 파일(credentials.json)을 설정해주세요.';
+            } else if (error.message.includes('권한이 없습니다')) {
+                errorMessage = '❌ 구글 시트에 쓰기 권한이 없습니다. 시트를 서비스 계정에 편집자 권한으로 공유했는지 확인해주세요.';
+            } else if (error.message.includes('시트를 찾을 수 없습니다')) {
+                errorMessage = '❌ 지정된 구글 시트를 찾을 수 없습니다. ID와 GID를 확인해주세요.';
+            }
+
+            await interaction.editReply({
+                content: `${errorMessage}\n\`\`\`${error.message}\`\`\``,
+                ephemeral: true
+            });
+        }
+    },
+};

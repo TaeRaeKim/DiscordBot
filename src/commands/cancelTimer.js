@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { loadPendingMembers, savePendingMembers } = require('../utils/dataManager');
 
 module.exports = {
@@ -8,7 +8,8 @@ module.exports = {
         .addUserOption(option =>
             option.setName('사용자')
                 .setDescription('타이머를 취소할 사용자')
-                .setRequired(true)),
+                .setRequired(true))
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
     async execute(interaction) {
         const targetUser = interaction.options.getUser('사용자');

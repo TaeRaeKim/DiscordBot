@@ -9,6 +9,19 @@ module.exports = {
             interaction = client;
         }
 
+        // 모달 제출 처리
+        if (interaction.isModalSubmit && interaction.isModalSubmit()) {
+            const messageCommand = commandHandlers['메세지'];
+            if (messageCommand && messageCommand.handleModalSubmit) {
+                try {
+                    await messageCommand.handleModalSubmit(interaction);
+                } catch (error) {
+                    logger.error('모달 처리 오류:', error);
+                }
+            }
+            return;
+        }
+
         if (!interaction || !interaction.isChatInputCommand || !interaction.isChatInputCommand()) {
             return;
         }

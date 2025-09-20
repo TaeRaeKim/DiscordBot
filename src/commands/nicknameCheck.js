@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const { hasAtSymbol, applyTimerToExistingMemberWithoutCheck } = require('../utils/memberUtils');
 const { loadPendingMembers } = require('../utils/dataManager');
 const logger = require('../utils/logManager');
@@ -6,17 +6,10 @@ const logger = require('../utils/logManager');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('닉네임검사')
-        .setDescription('서버의 모든 멤버 닉네임을 검사하고 타이머를 적용합니다 (관리자 전용)'),
+        .setDescription('서버의 모든 멤버 닉네임을 검사하고 타이머를 적용합니다 (관리자 전용)')
+        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
     async execute(interaction, config) {
-        // 권한 확인
-        if (!interaction.member.permissions.has('ManageGuild')) {
-            return interaction.reply({
-                content: '❌ 이 명령어는 서버 관리 권한이 있는 사용자만 사용할 수 있습니다.',
-                ephemeral: true
-            });
-        }
-
         await interaction.deferReply();
 
         const guild = interaction.guild;
