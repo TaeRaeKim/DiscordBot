@@ -3,8 +3,8 @@ const logger = require('../utils/logManager');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('메세지')
-        .setDescription('봇이 메시지를 대신 전송합니다 (모달 창에서 여러 줄 입력 가능)')
+        .setName('메시지')
+        .setDescription('봇이 메시지를 대신 전송합니다.')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 
     async execute(interaction) {
@@ -18,7 +18,7 @@ module.exports = {
             .setCustomId('message_content')
             .setLabel('메시지 내용')
             .setStyle(TextInputStyle.Paragraph)
-            .setPlaceholder('여기에 전송할 메시지를 입력하세요...\n여러 줄 입력이 가능합니다.')
+            .setPlaceholder('여기에 전송할 메시지를 입력하세요...')
             .setRequired(true)
             .setMaxLength(2000);
 
