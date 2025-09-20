@@ -1,0 +1,11 @@
+{
+    "token": "디스코드 봇 토큰",
+    "clientId": "디스코드 애플리케이션 클라이언트 ID",
+    "sourceForumChannelId": "디스코드 포럼 채널 ID",
+    "targetChannelId": "디스코드 링크가 게시될 채널 ID",
+    "googleSheetId": "구글 스프레드시트 ID",
+    "googleSheetGid": "시트 GID (기본값: 0)",
+    "googleSheetCellRange": "닉네임 목록이 있는 셀 범위 (예: C:C)",
+    "startRow": 1,
+    "nicknameColumn": 0
+}
