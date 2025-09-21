@@ -15,8 +15,34 @@ module.exports = {
         // 슬래시 명령어에서 멘션 가져오기
         const mentionTarget = interaction.options.getString('멘션');
 
+        // 멘션이 입력된 경우에만 유효성 검사 (null이 아니고 빈 문자열도 아닌 경우)
+        if (mentionTarget && mentionTarget.trim() !== '') {
+            // 허용되는 멘션 형식 체크
+            const isValidMention =
+                mentionTarget === '@everyone' ||
+                mentionTarget === 'everyone' ||
+                mentionTarget === '@here' ||
+                mentionTarget === 'here' ||
+                mentionTarget.match(/^<@!?(\d+)>$/) ||  // 사용자 멘션
+                mentionTarget.match(/^<@&(\d+)>$/);     // 역할 멘션
+
+            if (!isValidMention) {
+                return interaction.reply({
+                    content: '❌ 잘못된 멘션 형식입니다.\n\n' +
+                            '**지원하는 멘션 형식:**\n' +
+                            '• Discord 자동완성을 사용한 사용자/역할 선택\n' +
+                            '• `@everyone` 또는 `everyone`\n' +
+                            '• `@here` 또는 `here`\n\n' +
+                            '💡 슬래시 명령어 입력 시 Discord 자동완성을 사용해주세요.',
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+        }
+
         // 모달 생성 시 멘션 타겟 정보를 customId에 포함 (Base64로 인코딩하여 특수문자 처리)
-        const customId = mentionTarget ? `message_modal_${Buffer.from(mentionTarget).toString('base64')}` : 'message_modal';
+        const customId = (mentionTarget && mentionTarget.trim() !== '')
+            ? `message_modal_${Buffer.from(mentionTarget).toString('base64')}`
+            : 'message_modal';
         const modal = new ModalBuilder()
             .setCustomId(customId)
             .setTitle('메시지 작성');
@@ -43,9 +69,16 @@ module.exports = {
         if (!interaction.customId.startsWith('message_modal')) return;
 
         let mentionTarget = null;
-        if (interaction.customId.includes('_')) {
-            const base64Target = interaction.customId.split('_')[2];
-            mentionTarget = Buffer.from(base64Target, 'base64').toString();
+        if (interaction.customId !== 'message_modal' && interaction.customId.includes('_')) {
+            const parts = interaction.customId.split('_');
+            if (parts.length > 2 && parts[2]) {
+                try {
+                    const base64Target = parts[2];
+                    mentionTarget = Buffer.from(base64Target, 'base64').toString();
+                } catch (error) {
+                    logger.warn('Base64 디코딩 오류:', error);
+                }
+            }
         }
 
         const messageContent = interaction.fields.getTextInputValue('message_content');
@@ -73,56 +106,15 @@ module.exports = {
 
             // 멘션 타겟이 있는 경우 메시지 앞에 멘션 추가
             if (mentionTarget) {
-                // @everyone 또는 @here 처리
+                // @everyone 또는 @here 처리 (특별한 경우)
                 if (mentionTarget === '@everyone' || mentionTarget === 'everyone') {
                     finalMessage = `@everyone\n${messageContent}`;
                 } else if (mentionTarget === '@here' || mentionTarget === 'here') {
                     finalMessage = `@here\n${messageContent}`;
                 }
-                // 역할 멘션 처리 (@역할이름 또는 역할ID)
-                else if (mentionTarget.startsWith('@')) {
-                    const roleName = mentionTarget.substring(1);
-                    const role = interaction.guild.roles.cache.find(r => r.name === roleName);
-                    if (role) {
-                        finalMessage = `<@&${role.id}>\n${messageContent}`;
-                    } else {
-                        // 역할을 찾을 수 없으면 원본 메시지만 전송
-                        logger.warn(`역할을 찾을 수 없음: ${roleName}`);
-                    }
-                }
-                // 사용자 멘션 처리 (사용자ID 또는 사용자태그)
+                // Discord 멘션 형식은 그대로 사용 (이미 유효성 검사를 통과했음)
                 else {
-                    try {
-                        // 숫자로만 이루어진 경우 사용자 ID로 처리
-                        if (/^\d+$/.test(mentionTarget)) {
-                            const user = await interaction.client.users.fetch(mentionTarget);
-                            if (user) {
-                                finalMessage = `<@${user.id}>\n${messageContent}`;
-                            }
-                        }
-                        // 사용자 태그 형식 (예: username#0000)인 경우
-                        else if (mentionTarget.includes('#')) {
-                            const [username, discriminator] = mentionTarget.split('#');
-                            const member = interaction.guild.members.cache.find(m =>
-                                m.user.username === username && m.user.discriminator === discriminator
-                            );
-                            if (member) {
-                                finalMessage = `<@${member.user.id}>\n${messageContent}`;
-                            }
-                        }
-                        // 사용자 이름으로 검색
-                        else {
-                            const member = interaction.guild.members.cache.find(m =>
-                                m.user.username === mentionTarget || m.displayName === mentionTarget
-                            );
-                            if (member) {
-                                finalMessage = `<@${member.user.id}>\n${messageContent}`;
-                            }
-                        }
-                    } catch (error) {
-                        // 사용자를 찾을 수 없는 경우 무시하고 원본 메시지만 전송
-                        logger.warn(`사용자를 찾을 수 없음: ${mentionTarget}`);
-                    }
+                    finalMessage = `${mentionTarget}\n${messageContent}`;
                 }
             }
 
