@@ -11,12 +11,18 @@ module.exports = {
 
         // 모달 제출 처리
         if (interaction.isModalSubmit && interaction.isModalSubmit()) {
-            const messageCommand = commandHandlers['메세지'];
+            const messageCommand = commandHandlers['메시지'];
             if (messageCommand && messageCommand.handleModalSubmit) {
                 try {
                     await messageCommand.handleModalSubmit(interaction);
                 } catch (error) {
                     logger.error('모달 처리 오류:', error);
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({
+                            content: '❌ 모달 처리 중 오류가 발생했습니다.',
+                            flags: MessageFlags.Ephemeral
+                        });
+                    }
                 }
             }
             return;
