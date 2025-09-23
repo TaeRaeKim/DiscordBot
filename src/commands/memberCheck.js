@@ -23,9 +23,12 @@ module.exports = {
                 sheetId: config.googleSheets[0].sheetId,
                 gid: config.googleSheets[0].gid || '0',
                 nicknameColumn: config.googleSheets[0].nicknameColumn || 'A',
-                startRow: config.googleSheets[0].startRow || 1,
-                name: config.googleSheets[0].name || '첫 번째 시트'
+                startRow: config.googleSheets[0].startRow || 1
             };
+
+            // 스프레드시트 파일명 읽어오기
+            const spreadsheetTitle = await googleSheets.getSpreadsheetTitle(targetSheet.sheetId);
+            targetSheet.name = spreadsheetTitle;
 
             const sheetNicknames = await googleSheets.getMemberNicknames(
                 targetSheet.sheetId,
@@ -78,14 +81,14 @@ module.exports = {
                 .setTimestamp();
 
             if (missingMembers.length === 0) {
-                embed.setDescription(`**검사 대상 시트:** ${targetSheet.name}\n\n✅ 모든 구글 시트 멤버가 Discord 서버에 존재합니다.`)
+                embed.setDescription(`**검사 파일:** ${targetSheet.name}\n\n✅ 모든 구글 시트 멤버가 Discord 서버에 존재합니다.`)
                     .addFields({
                         name: '📈 통계',
                         value: `• 구글 시트 멤버: ${sheetNicknames.length}명`,
                         inline: false
                     });
             } else {
-                embed.setDescription(`**검사 대상 시트:** ${targetSheet.name}\n\n⚠️ 구글 시트에는 있지만 Discord 서버에 없는 멤버가 **${missingMembers.length}명** 발견되었습니다.`)
+                embed.setDescription(`**검사 파일:** ${targetSheet.name}\n\n⚠️ 구글 시트에는 있지만 Discord 서버에 없는 멤버가 **${missingMembers.length}명** 발견되었습니다.`)
                     .addFields(
                         {
                             name: '📈 통계',

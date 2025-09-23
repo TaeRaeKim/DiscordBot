@@ -55,6 +55,23 @@ class GoogleSheetsManager {
         }
     }
 
+    async getSpreadsheetTitle(spreadsheetId) {
+        try {
+            if (!this.sheets) {
+                await this.initialize();
+            }
+
+            const response = await this.sheets.spreadsheets.get({
+                spreadsheetId
+            });
+
+            return response.data.properties.title;
+        } catch (error) {
+            console.error('[GoogleSheets] 스프레드시트 제목 조회 실패:', error.message);
+            throw error;
+        }
+    }
+
     async getSheetData(spreadsheetId, range) {
         try {
             if (!this.sheets) {
