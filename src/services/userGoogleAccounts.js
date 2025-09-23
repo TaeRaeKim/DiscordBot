@@ -55,12 +55,6 @@ class UserGoogleAccountsManager {
             // config.json에서 시트 정보 가져오기
             const config = require('../../config.json');
 
-            // 관리자 계정이 등록되어 있는지 먼저 확인
-            const authClient = googleOAuth.getAuthClient(config.sheetOwnerEmail);
-            if (!authClient) {
-                throw new Error('관리자 계정이 등록되지 않았습니다. 시트 권한을 제거하려면 먼저 관리자가 `/소유계정등록`을 통해 계정을 등록해주세요.');
-            }
-
             // 구글 시트들에서 권한 제거
             const sheetResults = await googleOAuth.removeMultipleSheetsPermission(
                 config.sheetOwnerEmail,
