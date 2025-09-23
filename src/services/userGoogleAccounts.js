@@ -59,9 +59,9 @@ class UserGoogleAccountsManager {
                 userAccount.google_email
             );
 
-            // 데이터베이스에서 제거
-            await database.deleteUserGoogleAccount(discordUserId);
+            // 데이터베이스에서 제거 (외래키 제약조건 때문에 user_tokens 먼저 삭제)
             await database.deleteUserToken(userAccount.google_email);
+            await database.deleteUserGoogleAccount(discordUserId);
 
             return {
                 success: true,
