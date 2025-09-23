@@ -1,4 +1,4 @@
-config.json
+config.json*
 credentials*
 logs
 node_modules
@@ -12,3 +12,4 @@ user_tokens.json
 tokens.json
 database.sqlite
 temp/
+
