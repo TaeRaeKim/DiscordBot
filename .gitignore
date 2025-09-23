@@ -1,6 +1,9 @@
 config.json
-credentials.json
+credentials*
 logs
 node_modules
 CLAUDE.md
 pending_members.json
+tokens.json
+user_google_accounts.json
+.env
