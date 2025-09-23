@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const https = require('https');
 const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
@@ -7,7 +8,9 @@ const crypto = require('crypto');
 const database = require('./src/services/database');
 
 const app = express();
-const PORT = 5948;
+
+const PORT = process.env.OAUTH_PORT || 5948;
+const URL = process.env.OAUTH_SERVER_URL || `https://localhost:${PORT}`;
 
 const CREDENTIALS_PATH = path.join(__dirname, 'credentials_oauth2.json');
 
@@ -201,7 +204,7 @@ app.post('/api/auth/initiate', express.json(), (req, res) => {
         authStates.delete(state);
     }, 600000);
 
-    const authUrl = `http://localhost:${PORT}/auth/google?state=${state}`;
+    const authUrl = `${URL}/auth/google?state=${state}`;
     res.json({ authUrl });
 });
 
@@ -221,15 +224,31 @@ app.post('/api/auth/initiate/user', express.json(), (req, res) => {
         authStates.delete(state);
     }, 600000);
 
-    const authUrl = `http://localhost:${PORT}/auth/google/user?state=${state}`;
+    const authUrl = `${URL}/auth/google/user?state=${state}`;
     res.json({ authUrl });
 });
 
-app.listen(PORT, () => {
-    console.log(`OAuth 서버가 포트 ${PORT}에서 실행 중입니다.`);
-    console.log(`콜백 URL: http://localhost:${PORT}/callback`);
-    console.log('\n⚠️  프로덕션 환경에서는 다음 설정이 필요합니다:');
-    console.log('1. Google Cloud Console에서 리다이렉트 URI 설정');
-    console.log('2. 공개 도메인 설정 (예: https://yourdomain.com/callback)');
-    console.log('3. HTTPS 적용');
+// SSL 인증서 설정
+const keyPath = path.join(__dirname, 'ssl', 'private.key');
+const certPath = path.join(__dirname, 'ssl', 'certificate.crt');
+
+if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+    console.error('❌ SSL 인증서를 찾을 수 없습니다.');
+    console.log('다음 명령어로 SSL 인증서를 생성하세요: node generate-ssl.js');
+    process.exit(1);
+}
+
+const serverOptions = {
+    key: fs.readFileSync(keyPath),
+    cert: fs.readFileSync(certPath)
+};
+
+// HTTPS 서버 시작
+https.createServer(serverOptions, app).listen(PORT, '0.0.0.0', () => {
+    console.log(`🔒 HTTPS OAuth 서버가 포트 ${PORT}에서 실행 중입니다.`);
+    console.log(`콜백 URL: ${URL}/callback`);
+    console.log('🌐 모든 IP 주소에서 접속 가능합니다.');
+    console.log('\n⚠️ 개발용 자체 서명 인증서를 사용 중입니다.');
+    console.log('브라우저에서 SSL 경고가 나타날 수 있습니다. "고급" → "안전하지 않음(proceed)" 클릭');
+    console.log('\n프로덕션 환경에서는 신뢰할 수 있는 SSL 인증서를 사용하세요.');
 });

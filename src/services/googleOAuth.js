@@ -3,6 +3,7 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const https = require('https');
 const database = require('./database');
 
 const SCOPES = [
@@ -48,8 +49,9 @@ class GoogleOAuthService {
             const response = await axios.post(`${oauthServerUrl}/api/auth/initiate`, {
                 discordUserId,
                 apiKey
+            }, {
+                httpsAgent: new https.Agent({ rejectUnauthorized: false })
             });
-
 
             return response.data.authUrl;
         } catch (error) {

@@ -1,5 +1,6 @@
 const googleOAuth = require('./googleOAuth');
 const axios = require('axios');
+const https = require('https');
 const database = require('./database');
 
 class UserGoogleAccountsManager {
@@ -27,6 +28,8 @@ class UserGoogleAccountsManager {
             const response = await axios.post(`${oauthServerUrl}/api/auth/initiate/user`, {
                 discordUserId,
                 apiKey
+            }, {
+                httpsAgent: new https.Agent({ rejectUnauthorized: false })
             });
 
             return response.data.authUrl;

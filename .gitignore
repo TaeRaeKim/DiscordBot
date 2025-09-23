@@ -13,3 +13,4 @@ tokens.json
 database.sqlite
 temp/
 
+ssl/

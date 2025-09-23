@@ -34,8 +34,9 @@ module.exports = {
 
         logger.info(`명령어 실행 시도: ${interaction.commandName} by ${interaction.user.tag}`);
 
-        // 권한 확인 (서버 관리 권한 필요)
-        if (!interaction.member.permissions.has('ManageGuild')) {
+        // 권한 확인 (서버 관리 권한 필요) - 특정 명령어는 제외
+        const publicCommands = ['구글계정등록', '구글계정제거'];
+        if (!publicCommands.includes(interaction.commandName) && !interaction.member.permissions.has('ManageGuild')) {
             logger.warn(`권한 부족: ${interaction.user.tag}가 ${interaction.commandName} 실행 시도`);
             return interaction.reply({
                 content: '❌ 이 명령어를 사용할 권한이 없습니다.',
