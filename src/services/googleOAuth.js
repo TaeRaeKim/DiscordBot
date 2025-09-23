@@ -3,13 +3,13 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const database = require('./database');
 
 const SCOPES = [
     'https://www.googleapis.com/auth/drive',
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/userinfo.email'
 ];
-const TOKEN_PATH = path.join(__dirname, '../../tokens.json');
 
 class GoogleOAuthService {
     constructor() {
@@ -17,9 +17,9 @@ class GoogleOAuthService {
         this.loadTokens();
     }
 
-    loadTokens() {
-        if (fs.existsSync(TOKEN_PATH)) {
-            const tokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+    async loadTokens() {
+        try {
+            const tokens = await database.getAllAdminTokens();
             Object.entries(tokens).forEach(([email, tokenData]) => {
                 const oAuth2Client = this.createOAuth2Client();
                 oAuth2Client.setCredentials(tokenData.tokens);
@@ -28,6 +28,8 @@ class GoogleOAuthService {
                     discordUserId: tokenData.discordUserId
                 });
             });
+        } catch (error) {
+            console.error('토큰 로드 오류:', error);
         }
     }
 
@@ -61,13 +63,59 @@ class GoogleOAuthService {
         throw new Error('이 메서드는 더 이상 사용되지 않습니다. OAuth 인증이 자동으로 처리됩니다.');
     }
 
-    saveTokens(email, tokens, discordUserId) {
-        let allTokens = {};
-        if (fs.existsSync(TOKEN_PATH)) {
-            allTokens = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+    async saveTokens(email, tokens, discordUserId) {
+        try {
+            await database.setAdminToken(email, discordUserId, tokens);
+
+            // 메모리에도 업데이트
+            const oAuth2Client = this.createOAuth2Client();
+            oAuth2Client.setCredentials(tokens);
+            this.oAuth2Clients.set(email, {
+                client: oAuth2Client,
+                discordUserId: discordUserId
+            });
+        } catch (error) {
+            console.error('토큰 저장 오류:', error);
+            throw error;
         }
-        allTokens[email] = { tokens, discordUserId };
-        fs.writeFileSync(TOKEN_PATH, JSON.stringify(allTokens, null, 2));
+    }
+
+    async refreshTokenForUser(email) {
+        const authData = this.oAuth2Clients.get(email);
+        if (!authData) {
+            throw new Error('사용자 인증 정보를 찾을 수 없습니다.');
+        }
+
+        const authClient = authData.client;
+
+        try {
+            // 현재 토큰 정보 가져오기
+            const credentials = authClient.credentials;
+            if (!credentials.refresh_token) {
+                throw new Error('리프레시 토큰이 없습니다. 재인증이 필요합니다.');
+            }
+
+            // 토큰 갱신
+            const { credentials: newCredentials } = await authClient.refreshAccessToken();
+
+            // 새 토큰으로 클라이언트 업데이트
+            authClient.setCredentials(newCredentials);
+
+            // 메모리의 클라이언트 맵 업데이트
+            this.oAuth2Clients.set(email, {
+                client: authClient,
+                discordUserId: authData.discordUserId
+            });
+
+            // 데이터베이스에 새 토큰 저장
+            await this.saveTokens(email, newCredentials, authData.discordUserId);
+
+            console.log(`토큰 갱신 성공: ${email}`);
+            return true;
+        } catch (error) {
+            console.error(`토큰 갱신 실패 (${email}):`, error);
+            throw new Error('토큰 갱신에 실패했습니다. 재인증이 필요합니다.');
+        }
     }
 
     getAuthClient(email) {
@@ -96,7 +144,38 @@ class GoogleOAuthService {
             return true;
         } catch (error) {
             console.error('시트 공유 중 오류:', error);
-            throw new Error('시트 공유에 실패했습니다.');
+
+            // 토큰 만료 오류인지 확인 (401 Unauthorized)
+            if (error.code === 401 || error.status === 401) {
+                console.log('토큰 만료 감지, 자동 갱신 시도...');
+
+                try {
+                    // 토큰 자동 갱신
+                    await this.refreshTokenForUser(ownerEmail);
+
+                    // 갱신된 토큰으로 재시도
+                    const refreshedAuthClient = this.getAuthClient(ownerEmail);
+                    const refreshedDrive = google.drive({ version: 'v3', auth: refreshedAuthClient });
+
+                    await refreshedDrive.permissions.create({
+                        fileId: sheetId,
+                        requestBody: {
+                            type: 'user',
+                            role: 'writer',
+                            emailAddress: targetEmail
+                        },
+                        sendNotificationEmail: true
+                    });
+
+                    console.log('토큰 갱신 후 시트 공유 성공');
+                    return true;
+                } catch (refreshError) {
+                    console.error('토큰 갱신 후 재시도 실패:', refreshError);
+                    throw new Error('관리자 토큰이 만료되었습니다. 관리자에게 재인증을 요청해주세요.');
+                }
+            } else {
+                throw new Error('시트 공유에 실패했습니다.');
+            }
         }
     }
 
@@ -124,7 +203,41 @@ class GoogleOAuthService {
             return true;
         } catch (error) {
             console.error('권한 제거 중 오류:', error);
-            throw new Error('권한 제거에 실패했습니다.');
+
+            // 토큰 만료 오류인지 확인 (401 Unauthorized)
+            if (error.code === 401 || error.status === 401) {
+                console.log('토큰 만료 감지, 자동 갱신 시도...');
+
+                try {
+                    // 토큰 자동 갱신
+                    await this.refreshTokenForUser(ownerEmail);
+
+                    // 갱신된 토큰으로 재시도
+                    const refreshedAuthClient = this.getAuthClient(ownerEmail);
+                    const refreshedDrive = google.drive({ version: 'v3', auth: refreshedAuthClient });
+
+                    const refreshedResponse = await refreshedDrive.permissions.list({
+                        fileId: sheetId,
+                        fields: 'permissions(id,emailAddress)'
+                    });
+
+                    const refreshedPermission = refreshedResponse.data.permissions.find(p => p.emailAddress === targetEmail);
+                    if (refreshedPermission) {
+                        await refreshedDrive.permissions.delete({
+                            fileId: sheetId,
+                            permissionId: refreshedPermission.id
+                        });
+                    }
+
+                    console.log('토큰 갱신 후 권한 제거 성공');
+                    return true;
+                } catch (refreshError) {
+                    console.error('토큰 갱신 후 재시도 실패:', refreshError);
+                    throw new Error('관리자 토큰이 만료되었습니다. 관리자에게 재인증을 요청해주세요.');
+                }
+            } else {
+                throw new Error('권한 제거에 실패했습니다.');
+            }
         }
     }
 

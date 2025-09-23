@@ -1,36 +1,10 @@
-const fs = require('fs');
-const path = require('path');
 const googleOAuth = require('./googleOAuth');
 const axios = require('axios');
-
-const USER_ACCOUNTS_PATH = path.join(__dirname, '../../user_google_accounts.json');
+const database = require('./database');
 
 class UserGoogleAccountsManager {
     constructor() {
-        this.loadUserAccounts();
-    }
-
-    loadUserAccounts() {
-        if (fs.existsSync(USER_ACCOUNTS_PATH)) {
-            try {
-                const data = fs.readFileSync(USER_ACCOUNTS_PATH, 'utf8');
-                this.userAccounts = JSON.parse(data);
-            } catch (error) {
-                console.error('사용자 계정 파일 로드 오류:', error);
-                this.userAccounts = {};
-            }
-        } else {
-            this.userAccounts = {};
-        }
-    }
-
-    saveUserAccounts() {
-        try {
-            fs.writeFileSync(USER_ACCOUNTS_PATH, JSON.stringify(this.userAccounts, null, 2));
-        } catch (error) {
-            console.error('사용자 계정 파일 저장 오류:', error);
-            throw new Error('사용자 계정 정보 저장에 실패했습니다.');
-        }
+        // DB 사용으로 변경, 별도 초기화 불필요
     }
 
     /**
@@ -39,11 +13,9 @@ class UserGoogleAccountsManager {
      * @returns {Promise<string>} 인증 URL
      */
     async initiateUserAuth(discordUserId) {
-        // 최신 데이터를 다시 로드
-        this.loadUserAccounts();
-
         // 이미 등록된 사용자인지 확인
-        if (this.userAccounts[discordUserId]) {
+        const existingAccount = await database.getUserGoogleAccount(discordUserId);
+        if (existingAccount) {
             throw new Error('이미 등록된 사용자입니다. 먼저 기존 계정을 제거해주세요.');
         }
 
@@ -70,7 +42,7 @@ class UserGoogleAccountsManager {
      * @returns {Promise<boolean>} 성공 여부
      */
     async removeUserAccount(discordUserId) {
-        const userAccount = this.userAccounts[discordUserId];
+        const userAccount = await database.getUserGoogleAccount(discordUserId);
 
         if (!userAccount) {
             throw new Error('등록된 구글 계정이 없습니다.');
@@ -84,16 +56,16 @@ class UserGoogleAccountsManager {
             await googleOAuth.removeSheetPermission(
                 config.sheetOwnerEmail,
                 config.googleSheetId,
-                userAccount.googleEmail
+                userAccount.google_email
             );
 
-            // 로컬 데이터에서 제거
-            delete this.userAccounts[discordUserId];
-            this.saveUserAccounts();
+            // 데이터베이스에서 제거
+            await database.deleteUserGoogleAccount(discordUserId);
+            await database.deleteUserToken(userAccount.google_email);
 
             return {
                 success: true,
-                removedEmail: userAccount.googleEmail
+                removedEmail: userAccount.google_email
             };
         } catch (error) {
             console.error('구글 계정 제거 오류:', error);
@@ -106,29 +78,30 @@ class UserGoogleAccountsManager {
      * @param {string} discordUserId - Discord 사용자 ID
      * @returns {Object|null} 사용자 계정 정보
      */
-    getUserAccount(discordUserId) {
-        // 최신 데이터를 다시 로드
-        this.loadUserAccounts();
-        return this.userAccounts[discordUserId] || null;
+    async getUserAccount(discordUserId) {
+        return await database.getUserGoogleAccount(discordUserId);
     }
 
     /**
      * 전체 등록된 사용자 수 조회
-     * @returns {number} 등록된 사용자 수
+     * @returns {Promise<number>} 등록된 사용자 수
      */
-    getTotalRegisteredUsers() {
-        return Object.keys(this.userAccounts).length;
+    async getTotalRegisteredUsers() {
+        const accounts = await database.all('SELECT COUNT(*) as count FROM user_google_accounts');
+        return accounts[0].count;
     }
 
     /**
      * 특정 이메일이 이미 등록되어 있는지 확인
      * @param {string} googleEmail - 확인할 구글 이메일
-     * @returns {boolean} 등록 여부
+     * @returns {Promise<boolean>} 등록 여부
      */
-    isEmailAlreadyRegistered(googleEmail) {
-        return Object.values(this.userAccounts).some(
-            account => account.googleEmail === googleEmail
+    async isEmailAlreadyRegistered(googleEmail) {
+        const account = await database.get(
+            'SELECT discord_user_id FROM user_google_accounts WHERE google_email = ?',
+            [googleEmail]
         );
+        return !!account;
     }
 }
 

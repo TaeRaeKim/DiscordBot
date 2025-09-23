@@ -13,7 +13,7 @@ module.exports = {
             await interaction.deferReply({ ephemeral: true });
 
             // 등록된 계정이 있는지 확인
-            const existingAccount = userGoogleAccounts.getUserAccount(discordUserId);
+            const existingAccount = await userGoogleAccounts.getUserAccount(discordUserId);
             if (!existingAccount) {
                 const noAccountEmbed = new EmbedBuilder()
                     .setColor(0xFFAA00)
@@ -36,7 +36,7 @@ module.exports = {
                 .addFields(
                     {
                         name: '🗑️ 제거될 계정',
-                        value: `📧 **${existingAccount.googleEmail}**`
+                        value: `📧 **${existingAccount.google_email}**`
                     },
                     {
                         name: '📋 제거 작업 내용',
@@ -82,7 +82,10 @@ module.exports = {
             collector.on('collect', async i => {
                 if (i.customId === `confirm_remove_${discordUserId}`) {
                     try {
-                        await i.deferUpdate();
+                        await i.deferReply({ ephemeral: true });
+
+                        // 진행 상태 메시지 표시
+                        await i.editReply({ content: '⏳ 계정을 제거하고 있습니다...' });
 
                         // 구글 계정 제거 실행
                         const result = await userGoogleAccounts.removeUserAccount(discordUserId);
@@ -109,10 +112,14 @@ module.exports = {
                             })
                             .setTimestamp();
 
+                        // 원본 메시지를 성공 메시지로 바로 바꿈
                         await interaction.editReply({
                             embeds: [successEmbed],
                             components: []
                         });
+
+                        // 버튼 응답은 삭제
+                        await i.deleteReply();
 
                         console.log(`구글 계정 제거: ${interaction.user.tag} (${discordUserId}) -> ${result.removedEmail}`);
 
@@ -130,14 +137,18 @@ module.exports = {
                             })
                             .setTimestamp();
 
+                        // 원본 메시지를 오류 메시지로 바로 바꿈
                         await interaction.editReply({
                             embeds: [errorEmbed],
                             components: []
                         });
+
+                        // 버튼 응답은 삭제
+                        await i.deleteReply();
                     }
                 } else {
                     // 취소 버튼
-                    await i.deferUpdate();
+                    await i.deferReply({ ephemeral: true });
 
                     const cancelEmbed = new EmbedBuilder()
                         .setColor(0x888888)
@@ -145,14 +156,18 @@ module.exports = {
                         .setDescription('구글 계정 제거가 취소되었습니다.')
                         .addFields({
                             name: '📌 안내',
-                            value: `계정 **${existingAccount.googleEmail}**이 그대로 유지됩니다.`
+                            value: `계정 **${existingAccount.google_email}**이 그대로 유지됩니다.`
                         })
                         .setTimestamp();
 
+                    // 원본 메시지를 취소 메시지로 바로 바꿈
                     await interaction.editReply({
                         embeds: [cancelEmbed],
                         components: []
                     });
+
+                    // 버튼 응답은 삭제
+                    await i.deleteReply();
                 }
             });
 

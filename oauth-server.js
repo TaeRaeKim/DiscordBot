@@ -4,11 +4,11 @@ const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const database = require('./src/services/database');
 
 const app = express();
 const PORT = 5948;
 
-const TOKEN_PATH = path.join(__dirname, 'tokens.json');
 const CREDENTIALS_PATH = path.join(__dirname, 'credentials_oauth2.json');
 
 const authStates = new Map();
@@ -91,54 +91,29 @@ app.get('/callback', async (req, res) => {
         let resultMessage = '';
         let success = true;
 
-        // 사용자용 OAuth인 경우 자동으로 시트 권한 부여
+        // 데이터베이스에 임시 저장
         if (authData.type === 'user') {
-            try {
-                const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
-                const googleOAuth = require('./src/services/googleOAuth');
-                const userGoogleAccounts = require('./src/services/userGoogleAccounts');
+            // 사용자용 OAuth - pending에 저장 (토큰 포함)
+            await database.setPendingAuth(
+                authData.discordUserId,
+                'user',
+                email,
+                tokens
+            );
 
-                // 시트에 편집자 권한 추가
-                await googleOAuth.shareSheetWithUser(
-                    config.sheetOwnerEmail,
-                    config.googleSheetId,
-                    email
-                );
-
-                // 사용자 정보 로컬 저장
-                const userAccountsPath = path.join(__dirname, 'user_google_accounts.json');
-                let userAccounts = {};
-                if (fs.existsSync(userAccountsPath)) {
-                    userAccounts = JSON.parse(fs.readFileSync(userAccountsPath, 'utf8'));
-                }
-                userAccounts[authData.discordUserId] = {
-                    googleEmail: email,
-                    registeredAt: new Date().toISOString()
-                };
-                fs.writeFileSync(userAccountsPath, JSON.stringify(userAccounts, null, 2));
-
-                resultMessage = '구글 시트 편집 권한이 자동으로 부여되었습니다.';
-                console.log(`사용자 계정 등록 완료: ${authData.discordUserId} -> ${email}`);
-            } catch (error) {
-                console.error('시트 권한 부여 오류:', error);
-                resultMessage = '이메일 인증은 성공했지만 시트 권한 부여에 실패했습니다.';
-                success = false;
-            }
+            resultMessage = '구글 계정 인증이 완료되었습니다. Discord에서 "인증 완료" 버튼을 클릭하여 시트 권한을 받으세요.';
+            console.log(`사용자 인증 완료 (대기 중): ${authData.discordUserId} -> ${email}`);
         } else {
-            // 관리자용 OAuth - 자동 처리
-            try {
-                const googleOAuth = require('./src/services/googleOAuth');
+            // 관리자용 OAuth - pending에 저장 (토큰 포함)
+            await database.setPendingAuth(
+                authData.discordUserId,
+                'admin',
+                email,
+                tokens
+            );
 
-                // 관리자 토큰 저장
-                await googleOAuth.saveTokens(email, tokens, authData.discordUserId);
-
-                resultMessage = '관리자 계정 인증이 완료되었습니다. 이제 소유자 권한으로 시트를 관리할 수 있습니다.';
-                console.log(`관리자 계정 등록 완료: ${authData.discordUserId} -> ${email}`);
-            } catch (error) {
-                console.error('관리자 계정 저장 오류:', error);
-                resultMessage = '이메일 인증은 성공했지만 관리자 계정 저장에 실패했습니다.';
-                success = false;
-            }
+            resultMessage = '관리자 계정 인증이 완료되었습니다. Discord에서 "인증 완료" 버튼을 클릭하여 관리자 권한을 활성화하세요.';
+            console.log(`관리자 인증 완료 (대기 중): ${authData.discordUserId} -> ${email}`);
         }
 
         authStates.delete(state);
@@ -197,7 +172,7 @@ app.get('/callback', async (req, res) => {
                         ${resultMessage}
                     </div>
                     <div class="close-note">
-                        Discord로 돌아가서 ${success ? '시트를 확인해보세요' : '관리자에게 문의해주세요'}.<br>
+                        Discord로 돌아가서 ${success ? '"인증 완료" 버튼을 클릭하세요' : '관리자에게 문의해주세요'}.<br>
                         이 창은 안전하게 닫으셔도 됩니다.
                     </div>
                 </div>
