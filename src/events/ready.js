@@ -30,32 +30,32 @@ module.exports = {
         }
 
         // 기존 대기 중인 멤버들의 타이머 복구
-        const pendingMembers = loadPendingMembers();
+        const pendingMembers = await loadPendingMembers();
         const now = Date.now();
 
-        Object.entries(pendingMembers).forEach(([key, data]) => {
+        for (const [key, data] of Object.entries(pendingMembers)) {
             const timeLeft = data.kickTime - now;
 
             if (timeLeft <= 0) {
                 // 이미 시간이 지난 경우 즉시 처리
-                kickMemberIfNeeded(client, data.guildId, data.memberId, config);
+                await kickMemberIfNeeded(client, data.guildId, data.memberId, config);
                 delete pendingMembers[key];
             } else {
                 // 남은 시간만큼 타이머 설정
-                setTimeout(() => {
-                    kickMemberIfNeeded(client, data.guildId, data.memberId, config);
+                setTimeout(async () => {
+                    await kickMemberIfNeeded(client, data.guildId, data.memberId, config);
 
                     // 완료 후 목록에서 제거
-                    const updated = loadPendingMembers();
+                    const updated = await loadPendingMembers();
                     delete updated[key];
-                    savePendingMembers(updated);
+                    await savePendingMembers(updated);
                 }, timeLeft);
 
                 logger.info(`⏰ 타이머 복구: ${data.memberId} (${Math.round(timeLeft / 1000 / 60)} 분 남음)`);
             }
-        });
+        }
 
-        savePendingMembers(pendingMembers);
+        await savePendingMembers(pendingMembers);
 
         // 봇 시작 시 자동 닉네임 검사 제거
         logger.info('✅ 봇이 준비되었습니다.');

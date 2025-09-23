@@ -286,6 +286,35 @@ class DatabaseService {
         const sql = `DELETE FROM user_tokens WHERE google_email = ?`;
         return this.run(sql, [googleEmail]);
     }
+
+    // Pending Members 관련 메소드들
+    async setPendingMember(discordUserId, username, joinedAt, timerExpiresAt) {
+        const sql = `INSERT OR REPLACE INTO pending_members
+                     (discord_user_id, username, joined_at, timer_expires_at)
+                     VALUES (?, ?, ?, ?)`;
+        return this.run(sql, [discordUserId, username, joinedAt, timerExpiresAt]);
+    }
+
+    async getPendingMember(discordUserId) {
+        const sql = `SELECT * FROM pending_members WHERE discord_user_id = ?`;
+        return this.get(sql, [discordUserId]);
+    }
+
+    async getAllPendingMembers() {
+        const sql = `SELECT * FROM pending_members`;
+        return this.all(sql);
+    }
+
+    async deletePendingMember(discordUserId) {
+        const sql = `DELETE FROM pending_members WHERE discord_user_id = ?`;
+        return this.run(sql, [discordUserId]);
+    }
+
+    async getPendingMembersCount() {
+        const sql = `SELECT COUNT(*) as count FROM pending_members`;
+        const result = await this.get(sql);
+        return result.count;
+    }
 }
 
 module.exports = new DatabaseService();
