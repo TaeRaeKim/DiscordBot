@@ -229,8 +229,9 @@ app.post('/api/auth/initiate/user', express.json(), (req, res) => {
 });
 
 // SSL 인증서 설정
-const keyPath = path.join(__dirname, 'ssl', 'private.key');
-const certPath = path.join(__dirname, 'ssl', 'certificate.crt');
+const keyPath = process.env.SSL_KEY_PATH || path.join(__dirname, 'ssl', 'private.key');
+const certPath = process.env.SSL_CERT_PATH || path.join(__dirname, 'ssl', 'certificate.crt');
+const caPath = process.env.SSL_CA_PATH;
 
 if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
     console.error('❌ SSL 인증서를 찾을 수 없습니다.');
@@ -242,6 +243,11 @@ const serverOptions = {
     key: fs.readFileSync(keyPath),
     cert: fs.readFileSync(certPath)
 };
+
+// production 환경에서 CA 인증서 추가
+if (process.env.NODE_ENV === 'production' && caPath && fs.existsSync(caPath)) {
+    serverOptions.ca = fs.readFileSync(caPath);
+}
 
 // HTTPS 서버 시작
 https.createServer(serverOptions, app).listen(PORT, '0.0.0.0', () => {
