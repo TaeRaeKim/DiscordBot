@@ -3,7 +3,11 @@ credentials*
 logs
 node_modules
 CLAUDE.md
-pending_members.json
-tokens.json
-user_google_accounts.json
 .env
+
+pending_auth.json
+pending_members.json
+user_google_accounts.json
+user_tokens.json
+tokens.json
+database.sqlite
