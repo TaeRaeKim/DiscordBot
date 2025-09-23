@@ -6,7 +6,7 @@ async function migratePendingMembersToDatabase() {
     console.log('🚀 pending_members.json을 SQLite 데이터베이스로 마이그레이션을 시작합니다...\n');
 
     try {
-        const pendingMembersPath = path.join(__dirname, 'pending_members.json');
+        const pendingMembersPath = path.join(__dirname, '..', 'pending_members.json');
 
         // pending_members.json 파일 존재 확인
         if (!fs.existsSync(pendingMembersPath)) {
