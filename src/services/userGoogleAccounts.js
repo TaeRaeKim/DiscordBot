@@ -58,11 +58,11 @@ class UserGoogleAccountsManager {
                 throw new Error('관리자 계정이 등록되지 않았습니다. 시트 권한을 제거하려면 먼저 관리자가 `/소유계정등록`을 통해 계정을 등록해주세요.');
             }
 
-            // 구글 시트에서 권한 제거
-            await googleOAuth.removeSheetPermission(
+            // 구글 시트들에서 권한 제거
+            const sheetResults = await googleOAuth.removeMultipleSheetsPermission(
                 config.sheetOwnerEmail,
-                config.googleSheetId,
-                userAccount.google_email
+                userAccount.google_email,
+                config
             );
 
             // 데이터베이스에서 제거 (외래키 제약조건 때문에 user_tokens 먼저 삭제)
@@ -71,7 +71,8 @@ class UserGoogleAccountsManager {
 
             return {
                 success: true,
-                removedEmail: userAccount.google_email
+                removedEmail: userAccount.google_email,
+                sheetResults: sheetResults
             };
         } catch (error) {
             console.error('구글 계정 제거 오류:', error);

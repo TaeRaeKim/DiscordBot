@@ -37,9 +37,9 @@ module.exports = {
             }
 
             // config.json에서 시트 정보 가져오기
-            if (!config.googleSheetId) {
+            if (!config.googleSheets || config.googleSheets.length === 0) {
                 return await interaction.editReply({
-                    content: '❌ 서버 설정에 구글 시트 ID가 없습니다. 관리자에게 문의해주세요.',
+                    content: '❌ 서버 설정에 구글 시트 정보가 없습니다. 관리자에게 문의해주세요.',
                 });
             }
 
@@ -115,11 +115,11 @@ module.exports = {
                             const config = require('../../config.json');
                             const googleOAuth = require('../services/googleOAuth');
 
-                            // 시트에 편집자 권한 추가
-                            await googleOAuth.shareSheetWithUser(
+                            // 시트들에 편집자 권한 추가
+                            const sheetResults = await googleOAuth.shareMultipleSheetsWithUser(
                                 config.sheetOwnerEmail,
-                                config.googleSheetId,
-                                pendingAccount.google_email
+                                pendingAccount.google_email,
+                                config
                             );
 
                             // 데이터베이스에 사용자 계정 저장
@@ -138,7 +138,17 @@ module.exports = {
                             // pending_auth에서 제거
                             await database.deletePendingAuth(discordUserId);
 
-                            // 원본 메시지를 성공 상태로 업데이트
+                            // 시트 결과를 포함한 성공 메시지 생성
+                            let sheetStatusText = '';
+                            if (sheetResults.totalSheets > 1) {
+                                sheetStatusText = `\n• ${sheetResults.successCount}/${sheetResults.totalSheets}개 시트 권한 부여`;
+                                if (sheetResults.errorCount > 0) {
+                                    sheetStatusText += ` (${sheetResults.errorCount}개 실패)`;
+                                }
+                            } else {
+                                sheetStatusText = '\n• 구글 시트 편집 권한 부여';
+                            }
+
                             const successEmbed = new EmbedBuilder()
                                 .setColor(0x00FF00)
                                 .setTitle('✅ 계정 등록 완료')
@@ -146,7 +156,7 @@ module.exports = {
                                 .addFields(
                                     {
                                         name: '🎉 완료된 작업',
-                                        value: '• 구글 계정 인증 완료\n• 구글 시트 편집 권한 부여\n• 계정 연결 정보 저장'
+                                        value: `• 구글 계정 인증 완료${sheetStatusText}\n• 계정 연결 정보 저장`
                                     },
                                     {
                                         name: '📌 다음 단계',

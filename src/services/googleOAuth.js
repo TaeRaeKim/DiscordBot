@@ -241,6 +241,76 @@ class GoogleOAuthService {
         }
     }
 
+    async shareMultipleSheetsWithUser(ownerEmail, targetEmail, config) {
+        const results = [];
+        const errors = [];
+
+        for (const sheet of config.googleSheets) {
+            try {
+                await this.shareSheetWithUser(ownerEmail, sheet.sheetId, targetEmail);
+                results.push({
+                    name: sheet.name,
+                    sheetId: sheet.sheetId,
+                    success: true,
+                    description: sheet.description
+                });
+                console.log(`✅ 시트 권한 부여 성공: ${sheet.name} (${targetEmail})`);
+            } catch (error) {
+                console.error(`❌ 시트 권한 부여 실패: ${sheet.name}`, error);
+                errors.push({
+                    name: sheet.name,
+                    sheetId: sheet.sheetId,
+                    success: false,
+                    error: error.message,
+                    description: sheet.description
+                });
+            }
+        }
+
+        return {
+            results,
+            errors,
+            totalSheets: config.googleSheets.length,
+            successCount: results.length,
+            errorCount: errors.length
+        };
+    }
+
+    async removeMultipleSheetsPermission(ownerEmail, targetEmail, config) {
+        const results = [];
+        const errors = [];
+
+        for (const sheet of config.googleSheets) {
+            try {
+                await this.removeSheetPermission(ownerEmail, sheet.sheetId, targetEmail);
+                results.push({
+                    name: sheet.name,
+                    sheetId: sheet.sheetId,
+                    success: true,
+                    description: sheet.description
+                });
+                console.log(`✅ 시트 권한 제거 성공: ${sheet.name} (${targetEmail})`);
+            } catch (error) {
+                console.error(`❌ 시트 권한 제거 실패: ${sheet.name}`, error);
+                errors.push({
+                    name: sheet.name,
+                    sheetId: sheet.sheetId,
+                    success: false,
+                    error: error.message,
+                    description: sheet.description
+                });
+            }
+        }
+
+        return {
+            results,
+            errors,
+            totalSheets: config.googleSheets.length,
+            successCount: results.length,
+            errorCount: errors.length
+        };
+    }
+
 }
 
 module.exports = new GoogleOAuthService();

@@ -12,17 +12,26 @@ module.exports = {
         await interaction.deferReply();
 
         try {
-            if (!config.googleSheetId || !config.googleSheetGid) {
+            // googleSheets[0] 사용
+            if (!config.googleSheets || config.googleSheets.length === 0) {
                 return await interaction.editReply({
-                    content: '❌ 구글 시트 설정이 config.json에 없습니다.\n`googleSheetId`와 `googleSheetGid`를 설정해주세요.'
+                    content: '❌ config.json에 `googleSheets` 배열이 설정되지 않았습니다.'
                 });
             }
 
+            const targetSheet = {
+                sheetId: config.googleSheets[0].sheetId,
+                gid: config.googleSheets[0].gid || '0',
+                nicknameColumn: config.googleSheets[0].nicknameColumn || 'A',
+                startRow: config.googleSheets[0].startRow || 1,
+                name: config.googleSheets[0].name || '첫 번째 시트'
+            };
+
             const sheetNicknames = await googleSheets.getMemberNicknames(
-                config.googleSheetId,
-                config.googleSheetGid,
-                config.nicknameColumn || 'A',
-                config.startRow || 1
+                targetSheet.sheetId,
+                targetSheet.gid,
+                targetSheet.nicknameColumn,
+                targetSheet.startRow
             );
 
             if (sheetNicknames.length === 0) {
@@ -69,14 +78,14 @@ module.exports = {
                 .setTimestamp();
 
             if (missingMembers.length === 0) {
-                embed.setDescription('✅ 모든 구글 시트 멤버가 Discord 서버에 존재합니다.')
+                embed.setDescription(`**검사 대상 시트:** ${targetSheet.name}\n\n✅ 모든 구글 시트 멤버가 Discord 서버에 존재합니다.`)
                     .addFields({
                         name: '📈 통계',
                         value: `• 구글 시트 멤버: ${sheetNicknames.length}명`,
                         inline: false
                     });
             } else {
-                embed.setDescription(`⚠️ 구글 시트에는 있지만 Discord 서버에 없는 멤버가 **${missingMembers.length}명** 발견되었습니다.`)
+                embed.setDescription(`**검사 대상 시트:** ${targetSheet.name}\n\n⚠️ 구글 시트에는 있지만 Discord 서버에 없는 멤버가 **${missingMembers.length}명** 발견되었습니다.`)
                     .addFields(
                         {
                             name: '📈 통계',
