@@ -19,7 +19,7 @@ module.exports = {
         // 시간 로그는 필요시만 활성화
 
         // 대기 목록에 추가
-        const pendingMembers = await loadPendingMembers();
+        const pendingMembers = await loadPendingMembers(guildId);
         pendingMembers[key] = {
             memberId: memberId,
             guildId: guildId,
@@ -27,7 +27,7 @@ module.exports = {
             kickTime: kickTime,
             username: member.user.tag
         };
-        await savePendingMembers(pendingMembers);
+        await savePendingMembers(guildId, pendingMembers);
 
         // 킥 시간 타이머 설정
         const timeUntilKick = kickTime - Date.now();
@@ -35,9 +35,9 @@ module.exports = {
             await kickMemberIfNeeded(client, guildId, memberId, config);
 
             // 완료 후 목록에서 제거
-            const updated = await loadPendingMembers();
+            const updated = await loadPendingMembers(guildId);
             delete updated[key];
-            await savePendingMembers(updated);
+            await savePendingMembers(guildId, updated);
         }, timeUntilKick);
 
         logger.info(`⏰ ${KICK_HOURS}시간 타이머 시작: ${member.user.tag}`);

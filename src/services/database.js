@@ -36,10 +36,12 @@ class DatabaseService {
 
             // pending_members 테이블
             `CREATE TABLE IF NOT EXISTS pending_members (
-                discord_user_id TEXT PRIMARY KEY,
+                guild_id TEXT NOT NULL,
+                discord_user_id TEXT NOT NULL,
                 username TEXT NOT NULL,
                 joined_at DATETIME NOT NULL,
-                timer_expires_at DATETIME NOT NULL
+                timer_expires_at DATETIME NOT NULL,
+                PRIMARY KEY (guild_id, discord_user_id)
             )`,
 
             // admin_tokens 테이블
@@ -288,16 +290,16 @@ class DatabaseService {
     }
 
     // Pending Members 관련 메소드들
-    async setPendingMember(discordUserId, username, joinedAt, timerExpiresAt) {
+    async setPendingMember(guildId, discordUserId, username, joinedAt, timerExpiresAt) {
         const sql = `INSERT OR REPLACE INTO pending_members
-                     (discord_user_id, username, joined_at, timer_expires_at)
-                     VALUES (?, ?, ?, ?)`;
-        return this.run(sql, [discordUserId, username, joinedAt, timerExpiresAt]);
+                     (guild_id, discord_user_id, username, joined_at, timer_expires_at)
+                     VALUES (?, ?, ?, ?, ?)`;
+        return this.run(sql, [guildId, discordUserId, username, joinedAt, timerExpiresAt]);
     }
 
-    async getPendingMember(discordUserId) {
-        const sql = `SELECT * FROM pending_members WHERE discord_user_id = ?`;
-        return this.get(sql, [discordUserId]);
+    async getPendingMember(guildId, discordUserId) {
+        const sql = `SELECT * FROM pending_members WHERE guild_id = ? AND discord_user_id = ?`;
+        return this.get(sql, [guildId, discordUserId]);
     }
 
     async getAllPendingMembers() {
@@ -305,15 +307,20 @@ class DatabaseService {
         return this.all(sql);
     }
 
-    async deletePendingMember(discordUserId) {
-        const sql = `DELETE FROM pending_members WHERE discord_user_id = ?`;
-        return this.run(sql, [discordUserId]);
+    async deletePendingMember(guildId, discordUserId) {
+        const sql = `DELETE FROM pending_members WHERE guild_id = ? AND discord_user_id = ?`;
+        return this.run(sql, [guildId, discordUserId]);
     }
 
-    async getPendingMembersCount() {
-        const sql = `SELECT COUNT(*) as count FROM pending_members`;
-        const result = await this.get(sql);
+    async getPendingMembersCount(guildId) {
+        const sql = `SELECT COUNT(*) as count FROM pending_members WHERE guild_id = ?`;
+        const result = await this.get(sql, [guildId]);
         return result.count;
+    }
+
+    async getAllPendingMembersForGuild(guildId) {
+        const sql = `SELECT * FROM pending_members WHERE guild_id = ?`;
+        return this.all(sql, [guildId]);
     }
 }
 

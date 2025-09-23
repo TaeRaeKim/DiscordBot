@@ -87,7 +87,7 @@ async function applyTimerToExistingMemberWithoutCheck(client, member, botLoginTi
     logger.info(`📋 기존 멤버 타이머 적용: ${member.user.tag}`);
 
     // 대기 목록에 추가
-    const pendingMembers = await loadPendingMembers();
+    const pendingMembers = await loadPendingMembers(guildId);
     pendingMembers[key] = {
         memberId: memberId,
         guildId: guildId,
@@ -95,16 +95,16 @@ async function applyTimerToExistingMemberWithoutCheck(client, member, botLoginTi
         kickTime: kickTime,
         username: member.user.tag
     };
-    await savePendingMembers(pendingMembers);
+    await savePendingMembers(guildId, pendingMembers);
 
     // 타이머 설정
     setTimeout(async () => {
         await kickMemberIfNeeded(client, guildId, memberId, config);
 
         // 완료 후 목록에서 제거
-        const updated = await loadPendingMembers();
+        const updated = await loadPendingMembers(guildId);
         delete updated[key];
-        await savePendingMembers(updated);
+        await savePendingMembers(guildId, updated);
     }, KICK_TIME);
 
     // 기존 멤버에게 DM 발송

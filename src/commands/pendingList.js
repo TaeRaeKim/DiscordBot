@@ -16,8 +16,8 @@ module.exports = {
         // 전체 멤버를 한번에 가져오기
         await interaction.guild.members.fetch();
 
-        const pendingMembers = await loadPendingMembers();
-        const guildPending = Object.values(pendingMembers).filter(data => data.guildId === interaction.guild.id);
+        const pendingMembers = await loadPendingMembers(interaction.guild.id);
+        const guildPending = Object.values(pendingMembers);
 
         // 닉네임 업데이트 처리
         let updatedCount = 0;
@@ -39,12 +39,12 @@ module.exports = {
         if (toRemove.length > 0) {
             const updatedPending = { ...pendingMembers };
             toRemove.forEach(key => delete updatedPending[key]);
-            await savePendingMembers(updatedPending);
+            await savePendingMembers(interaction.guild.id, updatedPending);
 
             // 업데이트된 목록으로 다시 필터링
-            const newPendingMembers = await loadPendingMembers();
+            const newPendingMembers = await loadPendingMembers(interaction.guild.id);
             guildPending.length = 0;
-            guildPending.push(...Object.values(newPendingMembers).filter(data => data.guildId === interaction.guild.id));
+            guildPending.push(...Object.values(newPendingMembers));
         }
 
         if (guildPending.length === 0) {

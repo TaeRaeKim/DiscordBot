@@ -15,11 +15,11 @@ module.exports = {
         const targetUser = interaction.options.getUser('사용자');
 
         const key = `${interaction.guild.id}_${targetUser.id}`;
-        const pendingMembers = await loadPendingMembers();
+        const pendingMembers = await loadPendingMembers(interaction.guild.id);
 
         if (pendingMembers[key]) {
             delete pendingMembers[key];
-            await savePendingMembers(pendingMembers);
+            await savePendingMembers(interaction.guild.id, pendingMembers);
             return interaction.reply(`✅ ${targetUser.tag}의 타이머를 취소했습니다.`);
         } else {
             return interaction.reply({

@@ -46,7 +46,7 @@ module.exports = {
                 const key = `${guildId}_${memberId}`;
 
                 // 이미 대기 목록에 있는지 확인
-                const pendingMembers = loadPendingMembers();
+                const pendingMembers = await loadPendingMembers(guildId);
                 if (pendingMembers[key]) {
                     logger.info(`이미 대기 목록에 있음: ${member.user.tag}`);
                     processedCount++;

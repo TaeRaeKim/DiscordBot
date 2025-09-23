@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const database = require('./src/services/database');
+const database = require('../src/services/database');
 
 async function migratePendingMembersToDatabase() {
     console.log('🚀 pending_members.json을 SQLite 데이터베이스로 마이그레이션을 시작합니다...\n');
@@ -38,6 +38,7 @@ async function migratePendingMembersToDatabase() {
 
                 // 데이터베이스에 저장
                 await database.setPendingMember(
+                    memberData.guildId,
                     memberData.memberId,
                     memberData.username,
                     joinedAt,
@@ -77,18 +78,18 @@ async function migratePendingMembersToDatabase() {
 
 
 // 데이터베이스 확인 함수
-async function verifyMigration() {
+async function verifyMigration(guildId) {
     try {
-        const count = await database.getPendingMembersCount();
-        console.log(`\n🔍 데이터베이스 확인: ${count}개의 대기 멤버가 저장되어 있습니다.`);
+        const count = guildId ? await database.getPendingMembersCount(guildId) : 0;
+        const members = await database.getAllPendingMembers();
+        console.log(`\n🔍 데이터베이스 확인: 총 ${members.length}개의 대기 멤버가 저장되어 있습니다.`);
 
-        if (count > 0) {
+        if (members.length > 0) {
             console.log('\n📋 저장된 대기 멤버 목록:');
-            const members = await database.getAllPendingMembers();
             members.forEach((member, index) => {
                 const joinDate = new Date(member.joined_at).toLocaleString('ko-KR');
                 const expireDate = new Date(member.timer_expires_at).toLocaleString('ko-KR');
-                console.log(`   ${index + 1}. ${member.username} (가입: ${joinDate}, 만료: ${expireDate})`);
+                console.log(`   ${index + 1}. ${member.username} (Guild: ${member.guild_id}, 가입: ${joinDate}, 만료: ${expireDate})`);
             });
         }
     } catch (error) {
