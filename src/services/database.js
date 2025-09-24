@@ -98,6 +98,46 @@ class DatabaseService {
                 }
             });
         });
+
+        // 성능 향상을 위한 인덱스 생성
+        this.createIndexes();
+    }
+
+    createIndexes() {
+        const indexes = [
+            // user_google_accounts 테이블 인덱스
+            'CREATE INDEX IF NOT EXISTS idx_user_google_accounts_email ON user_google_accounts(google_email)',
+
+            // user_tokens 테이블 인덱스
+            'CREATE INDEX IF NOT EXISTS idx_user_tokens_discord_id ON user_tokens(discord_user_id)',
+
+            // admin_tokens 테이블 인덱스
+            'CREATE INDEX IF NOT EXISTS idx_admin_tokens_discord_id ON admin_tokens(discord_user_id)',
+
+            // pending_members 테이블 인덱스
+            'CREATE INDEX IF NOT EXISTS idx_pending_members_guild ON pending_members(guild_id)',
+            'CREATE INDEX IF NOT EXISTS idx_pending_members_expires ON pending_members(timer_expires_at)',
+
+            // account_history 테이블 인덱스 (가장 중요 - 조회 성능)
+            'CREATE INDEX IF NOT EXISTS idx_account_history_discord_user ON account_history(discord_user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_account_history_email ON account_history(google_email)',
+            'CREATE INDEX IF NOT EXISTS idx_account_history_timestamp ON account_history(timestamp DESC)',
+            'CREATE INDEX IF NOT EXISTS idx_account_history_action ON account_history(action)',
+
+            // 복합 인덱스 - 히스토리 조회 최적화
+            'CREATE INDEX IF NOT EXISTS idx_account_history_user_time ON account_history(discord_user_id, timestamp DESC)',
+            'CREATE INDEX IF NOT EXISTS idx_account_history_email_time ON account_history(google_email, timestamp DESC)'
+        ];
+
+        indexes.forEach((createIndexSQL, index) => {
+            this.db.run(createIndexSQL, (err) => {
+                if (err) {
+                    console.error(`인덱스 생성 실패 (${index + 1}):`, err.message);
+                } else {
+                    console.log(`인덱스 생성 성공 (${index + 1}/${indexes.length})`);
+                }
+            });
+        });
     }
 
     // Promise 기반 쿼리 실행

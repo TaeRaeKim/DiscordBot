@@ -137,12 +137,17 @@ module.exports = {
                             const config = require('../../config.json');
                             const googleOAuth = require('../services/googleOAuth');
 
-                            // 시트들에 편집자 권한 추가
+                            // 시트들에 편집자 권한 추가 (트랜잭션 기반)
                             const sheetResults = await googleOAuth.shareMultipleSheetsWithUser(
                                 config.sheetOwnerEmail,
                                 pendingAccount.google_email,
                                 config
                             );
+
+                            // 시트 권한 부여가 완전히 성공한 경우만 DB에 저장
+                            if (sheetResults.errorCount > 0) {
+                                throw new Error(`시트 권한 부여 실패: ${sheetResults.errors[0]?.error || '알 수 없는 오류'}`);
+                            }
 
                             // 데이터베이스에 사용자 계정 저장
                             await database.setUserGoogleAccount(
@@ -171,12 +176,12 @@ module.exports = {
                             // 시트 결과를 포함한 성공 메시지 생성
                             let sheetStatusText = '';
                             if (sheetResults.totalSheets > 1) {
-                                sheetStatusText = `\n• ${sheetResults.successCount}/${sheetResults.totalSheets}개 시트 권한 부여`;
-                                if (sheetResults.errorCount > 0) {
-                                    sheetStatusText += ` (${sheetResults.errorCount}개 실패)`;
+                                sheetStatusText = `\n• ${sheetResults.successCount}개 시트 모두 권한 부여 완료`;
+                                if (sheetResults.rollbackPerformed) {
+                                    sheetStatusText += '\n• 트랜잭션 기반 안전 처리';
                                 }
                             } else {
-                                sheetStatusText = '\n• 구글 시트 편집 권한 부여';
+                                sheetStatusText = '\n• 구글 시트 편집 권한 부여 완료';
                             }
 
                             const successEmbed = new EmbedBuilder()

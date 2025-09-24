@@ -244,48 +244,80 @@ class GoogleOAuthService {
     }
 
     async shareMultipleSheetsWithUser(ownerEmail, targetEmail, config) {
-        const results = [];
-        const errors = [];
+        const completedSheets = [];
+        const allResults = [];
 
-        for (const sheet of config.googleSheets) {
-            try {
-                await this.shareSheetWithUser(ownerEmail, sheet.sheetId, targetEmail);
-                results.push({
-                    name: sheet.name,
-                    sheetId: sheet.sheetId,
-                    success: true,
-                    description: sheet.description
-                });
-                console.log(`✅ 시트 권한 부여 성공: ${sheet.name} (${targetEmail})`);
-            } catch (error) {
-                console.error(`❌ 시트 권한 부여 실패: ${sheet.name}`, error);
-                errors.push({
-                    name: sheet.name,
-                    sheetId: sheet.sheetId,
-                    success: false,
-                    error: error.message,
-                    description: sheet.description
-                });
+        try {
+            // Phase 1: 모든 시트에 권한 부여 시도
+            for (const sheet of config.googleSheets) {
+                try {
+                    await this.shareSheetWithUser(ownerEmail, sheet.sheetId, targetEmail);
+                    completedSheets.push(sheet);
+                    allResults.push({
+                        name: sheet.name,
+                        sheetId: sheet.sheetId,
+                        success: true,
+                        description: sheet.description
+                    });
+                    console.log(`✅ 시트 권한 부여 성공: ${sheet.name} (${targetEmail})`);
+                } catch (error) {
+                    console.error(`❌ 시트 권한 부여 실패: ${sheet.name}`, error);
+
+                    // 하나라도 실패하면 이미 성공한 것들을 롤백
+                    if (completedSheets.length > 0) {
+                        console.log(`🔄 롤백 시작: ${completedSheets.length}개 시트 권한 제거`);
+
+                        for (const completedSheet of completedSheets) {
+                            try {
+                                await this.removeSheetPermission(ownerEmail, completedSheet.sheetId, targetEmail);
+                                console.log(`🔄 롤백 완료: ${completedSheet.name}`);
+                            } catch (rollbackError) {
+                                console.error(`❌ 롤백 실패: ${completedSheet.name}`, rollbackError);
+                                // 롤백 실패는 로그만 남기고 계속 진행
+                            }
+                        }
+                    }
+
+                    // 전체 작업 실패 처리
+                    throw new Error(`시트 권한 부여 실패: ${sheet.name} - ${error.message}`);
+                }
             }
-        }
 
-        return {
-            results,
-            errors,
-            totalSheets: config.googleSheets.length,
-            successCount: results.length,
-            errorCount: errors.length
-        };
+            // Phase 2: 모든 시트 성공
+            return {
+                results: allResults,
+                errors: [],
+                totalSheets: config.googleSheets.length,
+                successCount: allResults.length,
+                errorCount: 0,
+                rollbackPerformed: false
+            };
+
+        } catch (error) {
+            // 실패 시 결과 반환
+            return {
+                results: [],
+                errors: [{
+                    error: error.message,
+                    totalAttempted: completedSheets.length + 1
+                }],
+                totalSheets: config.googleSheets.length,
+                successCount: 0,
+                errorCount: config.googleSheets.length,
+                rollbackPerformed: completedSheets.length > 0
+            };
+        }
     }
 
     async removeMultipleSheetsPermission(ownerEmail, targetEmail, config) {
-        const results = [];
-        const errors = [];
+        const allResults = [];
+        const allErrors = [];
 
+        // Phase 1: 모든 시트에서 권한 제거 시도 (실패해도 계속 진행)
         for (const sheet of config.googleSheets) {
             try {
                 await this.removeSheetPermission(ownerEmail, sheet.sheetId, targetEmail);
-                results.push({
+                allResults.push({
                     name: sheet.name,
                     sheetId: sheet.sheetId,
                     success: true,
@@ -293,23 +325,46 @@ class GoogleOAuthService {
                 });
                 console.log(`✅ 시트 권한 제거 성공: ${sheet.name} (${targetEmail})`);
             } catch (error) {
-                console.error(`❌ 시트 권한 제거 실패: ${sheet.name}`, error);
-                errors.push({
-                    name: sheet.name,
-                    sheetId: sheet.sheetId,
-                    success: false,
-                    error: error.message,
-                    description: sheet.description
-                });
+                // 404 에러 (권한이 없는 경우)는 이미 제거된 것으로 간주
+                if (error.message.includes('404') || error.message.includes('not found')) {
+                    allResults.push({
+                        name: sheet.name,
+                        sheetId: sheet.sheetId,
+                        success: true,
+                        description: sheet.description,
+                        note: '이미 권한이 제거된 상태'
+                    });
+                    console.log(`✅ 시트 권한 이미 제거됨: ${sheet.name} (${targetEmail})`);
+                } else {
+                    // 실제 오류인 경우
+                    console.error(`❌ 시트 권한 제거 실패: ${sheet.name}`, error);
+                    allErrors.push({
+                        name: sheet.name,
+                        sheetId: sheet.sheetId,
+                        success: false,
+                        error: error.message,
+                        description: sheet.description
+                    });
+                }
             }
         }
 
+        // Phase 2: 결과 판정
+        const hasRealErrors = allErrors.length > 0;
+
+        if (hasRealErrors) {
+            // 실제 오류가 있는 경우 전체 실패로 처리
+            throw new Error(`시트 권한 제거 중 오류 발생: ${allErrors.map(e => e.name).join(', ')}`);
+        }
+
+        // 모든 권한 제거 완료 (404 포함)
         return {
-            results,
-            errors,
+            results: allResults,
+            errors: [],
             totalSheets: config.googleSheets.length,
-            successCount: results.length,
-            errorCount: errors.length
+            successCount: allResults.length,
+            errorCount: 0,
+            note: '모든 시트에서 권한이 제거되었습니다 (이미 제거된 권한 포함)'
         };
     }
 
