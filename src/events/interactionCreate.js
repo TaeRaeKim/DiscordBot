@@ -58,10 +58,14 @@ module.exports = {
                     flags: MessageFlags.Ephemeral
                 };
 
-                if (interaction.replied || interaction.deferred) {
-                    await interaction.followUp(errorMessage);
-                } else {
-                    await interaction.reply(errorMessage);
+                try {
+                    if (interaction.replied || interaction.deferred) {
+                        await interaction.followUp(errorMessage);
+                    } else {
+                        await interaction.reply(errorMessage);
+                    }
+                } catch (replyError) {
+                    logger.error(`응답 전송 실패:`, replyError);
                 }
             }
         } else {

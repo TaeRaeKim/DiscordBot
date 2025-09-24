@@ -12,6 +12,39 @@ module.exports = {
         try {
             await interaction.deferReply({ ephemeral: true });
 
+            // 이미 등록된 관리자 계정이 있는지 확인
+            const adminTokens = await database.getAllAdminTokens();
+            const existingAdmin = Object.values(adminTokens).find(token => token.discordUserId === interaction.user.id);
+
+            if (existingAdmin) {
+                const existingAdminEmail = Object.keys(adminTokens).find(email =>
+                    adminTokens[email].discordUserId === interaction.user.id
+                );
+
+                const alreadyRegisteredEmbed = new EmbedBuilder()
+                    .setColor(0xFFAA00)
+                    .setTitle('⚠️ 이미 등록된 관리자 계정')
+                    .setDescription(`이미 관리자 계정이 등록되어 있습니다.`)
+                    .addFields(
+                        {
+                            name: '📧 등록된 계정',
+                            value: existingAdminEmail
+                        },
+                        {
+                            name: '📌 안내사항',
+                            value: '• 하나의 Discord 계정당 하나의 관리자 구글 계정만 등록 가능합니다.\n• 계정을 변경하려면 기존 계정을 먼저 제거해야 합니다.'
+                        },
+                        {
+                            name: '🔄 계정 변경 방법',
+                            value: '1. 시스템 관리자에게 기존 계정 제거 요청\n2. 기존 계정 제거 후 새 계정으로 재등록'
+                        }
+                    )
+                    .setFooter({ text: '계정 변경이 필요하면 시스템 관리자에게 문의하세요.' })
+                    .setTimestamp();
+
+                return await interaction.editReply({ embeds: [alreadyRegisteredEmbed] });
+            }
+
             const authUrl = await googleOAuth.initiateAuth(null, interaction.user.id);
 
             const embed = new EmbedBuilder()

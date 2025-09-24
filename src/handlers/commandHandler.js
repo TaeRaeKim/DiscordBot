@@ -13,6 +13,11 @@ function loadCommands() {
         const command = require(filePath);
 
         if ('data' in command && 'execute' in command) {
+            // 모든 명령어에 DM 권한 제한 적용 (이미 설정된 경우 덮어쓰지 않음)
+            if (command.data.dm_permission === undefined) {
+                command.data.setDMPermission(false);
+            }
+
             commands.push(command.data.toJSON());
             commandHandlers[command.data.name] = command;
         } else {
