@@ -160,6 +160,14 @@ module.exports = {
                             // pending_auth에서 제거
                             await database.deletePendingAuth(discordUserId);
 
+                            // 히스토리에 등록 기록 추가
+                            await database.addAccountHistory(
+                                discordUserId,
+                                pendingAccount.google_email,
+                                'REGISTER',
+                                '구글계정등록 명령어를 통한 계정 등록'
+                            );
+
                             // 시트 결과를 포함한 성공 메시지 생성
                             let sheetStatusText = '';
                             if (sheetResults.totalSheets > 1) {

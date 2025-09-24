@@ -76,6 +76,16 @@ class DatabaseService {
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (discord_user_id) REFERENCES user_google_accounts(discord_user_id)
+            )`,
+
+            // account_history 테이블
+            `CREATE TABLE IF NOT EXISTS account_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                discord_user_id TEXT NOT NULL,
+                google_email TEXT NOT NULL,
+                action TEXT NOT NULL CHECK(action IN ('REGISTER', 'REMOVE')),
+                timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
             )`
         ];
 
@@ -84,7 +94,7 @@ class DatabaseService {
                 if (err) {
                     console.error(`테이블 생성 실패 (${index + 1}):`, err.message);
                 } else {
-                    console.log(`테이블 생성 성공 (${index + 1}/5)`);
+                    console.log(`테이블 생성 성공 (${index + 1}/6)`);
                 }
             });
         });
@@ -321,6 +331,33 @@ class DatabaseService {
     async getAllPendingMembersForGuild(guildId) {
         const sql = `SELECT * FROM pending_members WHERE guild_id = ?`;
         return this.all(sql, [guildId]);
+    }
+
+    // Account History 관련 메소드들
+    async addAccountHistory(discordUserId, googleEmail, action, notes = null) {
+        const sql = `INSERT INTO account_history
+                     (discord_user_id, google_email, action, notes)
+                     VALUES (?, ?, ?, ?)`;
+        return this.run(sql, [discordUserId, googleEmail, action, notes]);
+    }
+
+    async getAccountHistoryByDiscordUser(discordUserId) {
+        const sql = `SELECT * FROM account_history
+                     WHERE discord_user_id = ?
+                     ORDER BY timestamp DESC`;
+        return this.all(sql, [discordUserId]);
+    }
+
+    async getAccountHistoryByEmail(googleEmail) {
+        const sql = `SELECT * FROM account_history
+                     WHERE LOWER(google_email) = ?
+                     ORDER BY timestamp DESC`;
+        return this.all(sql, [googleEmail.toLowerCase()]);
+    }
+
+    async getAllAccountHistory() {
+        const sql = `SELECT * FROM account_history ORDER BY timestamp DESC`;
+        return this.all(sql);
     }
 }
 

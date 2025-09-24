@@ -62,6 +62,14 @@ class UserGoogleAccountsManager {
                 config
             );
 
+            // 히스토리에 제거 기록 추가
+            await database.addAccountHistory(
+                discordUserId,
+                userAccount.google_email,
+                'REMOVE',
+                '구글계정제거 명령어를 통한 계정 제거'
+            );
+
             // 데이터베이스에서 제거 (외래키 제약조건 때문에 user_tokens 먼저 삭제)
             await database.deleteUserToken(userAccount.google_email);
             await database.deleteUserGoogleAccount(discordUserId);
