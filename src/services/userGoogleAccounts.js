@@ -1,4 +1,5 @@
 const googleOAuth = require('./googleOAuth');
+const googleGroups = require('./googleGroups');
 const axios = require('axios');
 const https = require('https');
 const database = require('./database');
@@ -52,20 +53,18 @@ class UserGoogleAccountsManager {
         }
 
         try {
-            // config.json에서 시트 정보 가져오기
+            // config.json에서 Google Groups 정보 가져오기
             const config = require('../../config.json');
 
-            // 구글 시트들에서 권한 제거 (트랜잭션 기반)
-            const sheetResults = await googleOAuth.removeMultipleSheetsPermission(
-                config.sheetOwnerEmail,
+            // Google Groups에서 사용자 제거
+            const groupResult = await googleGroups.removeMemberFromGroup(
                 userAccount.google_email,
-                config
+                config.googleGroupEmail
             );
 
-            // 시트 권한 제거가 완전히 성공한 경우만 DB에서 제거
-            // (404 에러는 이미 제거된 것으로 간주하므로 성공 처리)
-            if (sheetResults.errorCount > 0) {
-                throw new Error(`시트 권한 제거 실패: ${sheetResults.errors[0]?.error || '알 수 없는 오류'}`);
+            // 그룹 제거가 실패한 경우
+            if (!groupResult.success) {
+                throw new Error(`Google Groups 제거 실패: ${groupResult.error || '알 수 없는 오류'}`);
             }
 
             // 히스토리에 제거 기록 추가
@@ -83,7 +82,7 @@ class UserGoogleAccountsManager {
             return {
                 success: true,
                 removedEmail: userAccount.google_email,
-                sheetResults: sheetResults
+                groupResult: groupResult
             };
         } catch (error) {
             console.error('구글 계정 제거 오류:', error);

@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const userGoogleAccounts = require('../services/userGoogleAccounts');
 const database = require('../services/database');
+const googleGroups = require('../services/googleGroups');
 const config = require('../../config.json');
 
 module.exports = {
@@ -13,28 +14,6 @@ module.exports = {
 
         try {
             await interaction.deferReply({ ephemeral: true });
-
-            // 소유계정등록이 완료되었는지 먼저 확인
-            const adminTokens = await database.getAllAdminTokens();
-            if (Object.keys(adminTokens).length === 0) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(0xFF4444)
-                    .setTitle('❌ 구글계정등록 실패')
-                    .setDescription('소유계정등록이 완료되지 않았습니다.')
-                    .addFields(
-                        {
-                            name: '🔐 필수 조건',
-                            value: '구글 계정을 등록하기 전에 관리자가 구글 시트 소유자 계정을 등록해야 합니다.'
-                        },
-                        {
-                            name: '📌 해결 방법',
-                            value: '관리자의 소유자 계정 등록이 완료된 후 다시 시도해주세요.'
-                        }
-                    )
-                    .setTimestamp();
-
-                return await interaction.editReply({ embeds: [errorEmbed] });
-            }
 
             // 이미 등록된 사용자인지 확인
             const existingAccount = await userGoogleAccounts.getUserAccount(discordUserId);
@@ -58,16 +37,10 @@ module.exports = {
                 return await interaction.editReply({ embeds: [errorEmbed] });
             }
 
-            // config.json에서 시트 정보 가져오기
-            if (!config.googleSheets || config.googleSheets.length === 0) {
+            // config.json에서 Google Group 정보 가져오기
+            if (!config.googleGroupEmail) {
                 return await interaction.editReply({
-                    content: '❌ 서버 설정에 구글 시트 정보가 없습니다. 관리자에게 문의해주세요.',
-                });
-            }
-
-            if (!config.sheetOwnerEmail) {
-                return await interaction.editReply({
-                    content: '❌ 서버 설정에 시트 소유자 이메일이 없습니다. 관리자에게 문의해주세요.',
+                    content: '❌ 서버 설정에 구글 그룹 정보가 없습니다. 관리자에게 문의해주세요.',
                 });
             }
 
@@ -135,18 +108,16 @@ module.exports = {
                         // 인증 대기 중인 계정이 있음 - 실제 등록 진행
                         try {
                             const config = require('../../config.json');
-                            const googleOAuth = require('../services/googleOAuth');
 
-                            // 시트들에 편집자 권한 추가 (트랜잭션 기반)
-                            const sheetResults = await googleOAuth.shareMultipleSheetsWithUser(
-                                config.sheetOwnerEmail,
+                            // Google Groups에 사용자 추가
+                            const groupResult = await googleGroups.addMemberToGroup(
                                 pendingAccount.google_email,
-                                config
+                                config.googleGroupEmail
                             );
 
-                            // 시트 권한 부여가 완전히 성공한 경우만 DB에 저장
-                            if (sheetResults.errorCount > 0) {
-                                throw new Error(`시트 권한 부여 실패: ${sheetResults.errors[0]?.error || '알 수 없는 오류'}`);
+                            // 그룹 추가가 실패한 경우
+                            if (!groupResult.success) {
+                                throw new Error(`Google Groups 추가 실패: ${groupResult.error || '알 수 없는 오류'}`);
                             }
 
                             // 데이터베이스에 사용자 계정 저장
@@ -173,17 +144,6 @@ module.exports = {
                                 '구글계정등록 명령어를 통한 계정 등록'
                             );
 
-                            // 시트 결과를 포함한 성공 메시지 생성
-                            let sheetStatusText = '';
-                            if (sheetResults.totalSheets > 1) {
-                                sheetStatusText = `\n• ${sheetResults.successCount}개 시트 모두 권한 부여 완료`;
-                                if (sheetResults.rollbackPerformed) {
-                                    sheetStatusText += '\n• 트랜잭션 기반 안전 처리';
-                                }
-                            } else {
-                                sheetStatusText = '\n• 구글 시트 편집 권한 부여 완료';
-                            }
-
                             const successEmbed = new EmbedBuilder()
                                 .setColor(0x00FF00)
                                 .setTitle('✅ 계정 등록 완료')
@@ -191,7 +151,7 @@ module.exports = {
                                 .addFields(
                                     {
                                         name: '🎉 완료된 작업',
-                                        value: `• 구글 계정 인증 완료${sheetStatusText}\n• 계정 연결 정보 저장`
+                                        value: `• 구글 계정 인증 완료 및 구글 시트 편집 권한 부여 완료\n• 계정 연결 정보 저장`
                                     },
                                     {
                                         name: '📌 다음 단계',
@@ -214,7 +174,7 @@ module.exports = {
                             console.log(`사용자 계정 등록 완료: ${discordUserId} -> ${pendingAccount.google_email}`);
 
                         } catch (error) {
-                            console.error('시트 권한 부여 오류:', error);
+                            console.error('Google Groups 추가 오류:', error);
 
                             // 원본 메시지를 오류 상태로 바꿈
                             const errorEmbed = new EmbedBuilder()

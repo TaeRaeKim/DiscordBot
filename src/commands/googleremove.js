@@ -13,28 +13,6 @@ module.exports = {
         try {
             await interaction.deferReply({ ephemeral: true });
 
-            // 소유계정등록이 완료되었는지 먼저 확인
-            const adminTokens = await database.getAllAdminTokens();
-            if (Object.keys(adminTokens).length === 0) {
-                const errorEmbed = new EmbedBuilder()
-                    .setColor(0xFF4444)
-                    .setTitle('❌ 구글계정제거 실패')
-                    .setDescription('소유계정등록이 완료되지 않았습니다.')
-                    .addFields(
-                        {
-                            name: '🔐 필수 조건',
-                            value: '구글 계정을 제거하기 전에 관리자가 구글 시트 소유자 계정을 등록해야 합니다.'
-                        },
-                        {
-                            name: '📌 해결 방법',
-                            value: '관리자의 소유자 계정 등록이 완료된 후 다시 시도해주세요.'
-                        }
-                    )
-                    .setTimestamp();
-
-                return await interaction.editReply({ embeds: [errorEmbed] });
-            }
-
             // 등록된 계정이 있는지 확인
             const existingAccount = await userGoogleAccounts.getUserAccount(discordUserId);
             if (!existingAccount) {
