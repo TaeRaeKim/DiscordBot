@@ -114,7 +114,9 @@ module.exports = {
                 const actionIcon = item.action === 'REGISTER' ? '✅' : '🗑️';
                 const actionText = item.action === 'REGISTER' ? '등록' : '삭제';
 
-                const timestamp = new Date(item.timestamp).toLocaleString('ko-KR', {
+                // SQLite CURRENT_TIMESTAMP는 UTC로 저장되므로 Z를 붙여 UTC임을 명시
+                const utcTimestamp = item.timestamp.includes('Z') ? item.timestamp : item.timestamp + 'Z';
+                const timestamp = new Date(utcTimestamp).toLocaleString('ko-KR', {
                     timeZone: 'Asia/Seoul',
                     year: 'numeric',
                     month: '2-digit',
@@ -157,7 +159,9 @@ module.exports = {
 
                 for (const item of historyData) {
                     const actionText = item.action === 'REGISTER' ? '등록' : '삭제';
-                    const timestamp = new Date(item.timestamp).toLocaleString('ko-KR', {
+                    // SQLite CURRENT_TIMESTAMP는 UTC로 저장되므로 Z를 붙여 UTC임을 명시
+                    const utcTimestamp = item.timestamp.includes('Z') ? item.timestamp : item.timestamp + 'Z';
+                    const timestamp = new Date(utcTimestamp).toLocaleString('ko-KR', {
                         timeZone: 'Asia/Seoul',
                         year: 'numeric',
                         month: '2-digit',
