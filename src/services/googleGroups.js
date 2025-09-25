@@ -5,14 +5,27 @@ class GoogleGroupsManager {
     constructor() {
         // Admin SDK Directory API for Groups
         this.adminService = google.admin('directory_v1');
+
+        // JWT 토큰 캐싱 변수
+        this.jwtClientCache = null;
+        this.tokenExpiry = null;
+        this.TOKEN_LIFETIME = 55 * 60 * 1000; // 55분 (실제 만료 1시간 전에 갱신)
     }
 
     /**
-     * 서비스 계정 인증 객체 생성
+     * 서비스 계정 인증 객체 생성 (캐싱 적용)
      * @returns {Promise<Object>} 인증된 auth 객체
      */
     async getServiceAccountAuth() {
         try {
+            // 캐시된 토큰이 있고 아직 유효한 경우
+            if (this.jwtClientCache && this.tokenExpiry && Date.now() < this.tokenExpiry) {
+                console.log('✅ 캐시된 JWT 토큰 사용');
+                return this.jwtClientCache;
+            }
+
+            console.log('🔄 새 JWT 토큰 생성 중...');
+
             const credentialsPath = path.join(__dirname, '../../credentials.json');
             const config = require('../../config.json');
 
@@ -31,10 +44,66 @@ class GoogleGroupsManager {
             );
 
             await jwtClient.authorize();
+
+            // 토큰 캐싱
+            this.jwtClientCache = jwtClient;
+            this.tokenExpiry = Date.now() + this.TOKEN_LIFETIME;
+
+            console.log(`✅ JWT 토큰 생성 완료 (만료: ${new Date(this.tokenExpiry).toLocaleString('ko-KR')})`);
+
             return jwtClient;
         } catch (error) {
             console.error('서비스 계정 인증 오류:', error);
+
+            // 캐시 초기화
+            this.jwtClientCache = null;
+            this.tokenExpiry = null;
+
             throw new Error('서비스 계정 인증에 실패했습니다. Domain-wide delegation 설정을 확인해주세요.');
+        }
+    }
+
+    /**
+     * 토큰 강제 갱신 (필요시 수동으로 호출)
+     */
+    async refreshToken() {
+        console.log('🔄 JWT 토큰 강제 갱신...');
+        this.jwtClientCache = null;
+        this.tokenExpiry = null;
+        return await this.getServiceAccountAuth();
+    }
+
+    /**
+     * API 호출을 자동 재시도와 함께 실행
+     * @param {Function} apiCall - 실행할 API 호출 함수
+     * @param {string} operationName - 작업 이름 (로깅용)
+     * @returns {Promise<any>} API 호출 결과
+     */
+    async executeWithRetry(apiCall, operationName) {
+        try {
+            // 첫 번째 시도
+            return await apiCall();
+        } catch (error) {
+            const errorCode = error.response?.status || error.code;
+
+            // 401 Unauthorized - 토큰 만료 가능성
+            if (errorCode === 401) {
+                console.log(`⚠️ ${operationName}: 토큰 만료 감지, 자동 갱신 후 재시도...`);
+
+                try {
+                    // 토큰 갱신
+                    await this.refreshToken();
+
+                    // 재시도
+                    return await apiCall();
+                } catch (retryError) {
+                    console.error(`❌ ${operationName}: 토큰 갱신 후 재시도 실패`);
+                    throw retryError;
+                }
+            }
+
+            // 다른 에러는 그대로 전달
+            throw error;
         }
     }
 
@@ -46,20 +115,23 @@ class GoogleGroupsManager {
      */
     async addMemberToGroup(userEmail, groupEmail) {
         try {
-            const auth = await this.getServiceAccountAuth();
+            // 자동 재시도 로직과 함께 실행
+            const response = await this.executeWithRetry(async () => {
+                const auth = await this.getServiceAccountAuth();
 
-            // Admin SDK를 사용한 멤버 추가
-            const member = {
-                email: userEmail,
-                role: 'MEMBER',
-                type: 'USER'
-            };
+                // Admin SDK를 사용한 멤버 추가
+                const member = {
+                    email: userEmail,
+                    role: 'MEMBER',
+                    type: 'USER'
+                };
 
-            const response = await this.adminService.members.insert({
-                auth: auth,
-                groupKey: groupEmail,
-                requestBody: member
-            });
+                return await this.adminService.members.insert({
+                    auth: auth,
+                    groupKey: groupEmail,
+                    requestBody: member
+                });
+            }, `그룹 멤버 추가 (${userEmail})`);
 
             console.log(`사용자 ${userEmail}을(를) 그룹 ${groupEmail}에 추가했습니다.`);
 
@@ -105,13 +177,16 @@ class GoogleGroupsManager {
      */
     async removeMemberFromGroup(userEmail, groupEmail) {
         try {
-            const auth = await this.getServiceAccountAuth();
+            // 자동 재시도 로직과 함께 실행
+            await this.executeWithRetry(async () => {
+                const auth = await this.getServiceAccountAuth();
 
-            await this.adminService.members.delete({
-                auth: auth,
-                groupKey: groupEmail,
-                memberKey: userEmail
-            });
+                return await this.adminService.members.delete({
+                    auth: auth,
+                    groupKey: groupEmail,
+                    memberKey: userEmail
+                });
+            }, `그룹 멤버 제거 (${userEmail})`);
 
             console.log(`사용자 ${userEmail}을(를) 그룹 ${groupEmail}에서 제거했습니다.`);
 
