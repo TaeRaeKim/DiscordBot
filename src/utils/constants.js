@@ -1,5 +1,5 @@
 // 상수 정의
 module.exports = {
     KICK_HOURS: 24,
-    KICK_TIME: 24 * 60 * 60 * 1000, // 24시간을 밀리초로
+    KICK_TIME: 5 * 60 * 1000, // 5분
 };
